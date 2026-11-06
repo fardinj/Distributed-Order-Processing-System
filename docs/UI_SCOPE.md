@@ -1,6 +1,6 @@
 # Simple Persian customer and admin UI
 
-Status: UI scope selected in Q18; this is a planning brief, not implemented screens or an approved visual identity. Product purpose and flows come from the task and accepted decisions. No incumbent frontend, PRODUCT.md or DESIGN.md exists yet.
+Status: Q18 scope is implemented in step 7. This remains the selected scope brief; [UI_GUIDE.md](UI_GUIDE.md) describes operation and [UI_VERIFICATION.md](UI_VERIFICATION.md) records executed evidence. Root PRODUCT.md and DESIGN.md document product constraints and shipped styling. No new business policy was inferred from visual choices.
 
 ## Purpose and audience
 

@@ -1,5 +1,7 @@
 # Commerce
 
+Step 7 adds `modules/orders/admin-orders.controller.ts`: an admin-only bounded date/id cursor list and search by order/customer/item UUID. The forward index migration preserves customer ownership and exact money contracts. It supports discrepancy-to-order navigation in the Persian UI.
+
 Step 6 adds `modules/orders/actions.controller.ts` for owner cancellation, guarded audited retry cycles, attempt history and admin review inspection. Recovery checkpoints/Redis overlap are in `modules/fulfillment/fulfillment.service.ts`; SQL storage admission remains in checkout. Public catalog reads use an optional two-second Redis cache; admin/checkout truth stays in PostgreSQL. See [recovery contracts](../../docs/CANCELLATION_RECOVERY_AND_REDIS.md).
 
 Owns orders, checkout revisions, catalog, stock/reservations, local fulfillment, item dispositions and order history. Digital/subscription/physical processors are separate modules in this service, sharing its short SQL transaction boundary.

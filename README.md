@@ -1,6 +1,6 @@
 # TOPS — distributed order processing
 
-Docker-first NestJS/TypeScript workspace. Steps 1-6 provide isolated services, exact IRR, protected catalog/admin/checkout APIs, reliable messaging, payment recovery, fulfillment, refunds, cancellation/review/retry actions and Redis features with SQL-safe outages. The small Persian UI is next (step 7).
+Docker-first NestJS/TypeScript workspace. Steps 1-7 provide isolated services, exact IRR, protected APIs, reliable messaging, payment/fulfillment/refund recovery, cancellation/review actions, Redis outage safeguards and a small Persian customer/admin UI. Load/submission evidence is next (step 8).
 
 ## Start or upgrade
 
@@ -19,6 +19,7 @@ docker compose --profile tools run --rm --build checkout-checks
 docker compose --profile tools run --rm --build payment-checks
 docker compose --profile tools run --rm --build fulfillment-checks
 docker compose --profile tools run --rm --build recovery-checks
+docker compose --profile tools run --rm --build ui-checks
 ```
 
 Setup creates `.env`, random passwords and hashed broker definitions in gitignored `.local/`. It preserves existing credentials; rerun when new secret names are introduced. Start infrastructure and apply migrations before domain apps: readiness now checks that each owner's schema exists.
@@ -27,7 +28,7 @@ New checkout admission requires fresh healthy storage observations. Normal Compo
 
 Migration/seed commands are additive and idempotent. `identity-init --fixtures` explicitly installs local demo users and separate machine test clients; omit that flag for nonfixture provisioning. It prints no password/token. Human demo admin requires TOTP setup. Never reset data or delete volumes to make a check pass.
 
-Open [status](http://localhost:8080), [readiness](http://localhost:8080/health/ready), [auth configuration](http://localhost:8080/auth/config) or [OIDC discovery](http://localhost:8080/identity/realms/tops/.well-known/openid-configuration). Protected routes require bearer access tokens. Port/public origin are in `.env`; change both together and rerun identity provisioning for the exact callback origin.
+Open the [Persian UI](http://localhost:8080/), [JSON status](http://localhost:8080/status), [readiness](http://localhost:8080/health/ready) or [OIDC discovery](http://localhost:8080/identity/realms/tops/.well-known/openid-configuration). [UI_GUIDE.md](docs/UI_GUIDE.md) explains demo accounts, generated password file locations, MFA and the walkthrough. APIs require bearer tokens. Change port/public origin together and rerun identity provisioning for the exact callback/logout origins.
 
 ## Find the code
 
@@ -124,4 +125,4 @@ This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16
 
 Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
 
-Next is [roadmap step 7](docs/ROADMAP.md): the small Persian RTL customer/admin UI. Review [recovery/Redis contracts](docs/CANCELLATION_RECOVERY_AND_REDIS.md) and [executed evidence](docs/RECOVERY_VERIFICATION.md). Sustained load and delivery evidence remain step 8.
+Next is [roadmap step 8](docs/ROADMAP.md): constrained-host load/failure measurement and submission evidence. The [UI guide](docs/UI_GUIDE.md) and [executed UI evidence](docs/UI_VERIFICATION.md) cover the implemented screens; root DESIGN.md records their tokens. No measured sustainable RPS is claimed.

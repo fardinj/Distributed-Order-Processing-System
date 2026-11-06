@@ -5,6 +5,7 @@ import { BillingDatabase } from './database.js';
 import { ServiceIdentity } from '../../../packages/runtime/src/service-identity.js';
 import { InvalidMessage, type Sql, type Envelope } from '../../../packages/runtime/src/outbox.js';
 import { logRecord } from '../../../packages/runtime/src/logger.js';
+import { ensurePaymentLines } from './payment-lines.js';
 
 const money = z.string().regex(/^(0|[1-9][0-9]*)$/);
 const request = z
@@ -17,6 +18,12 @@ const request = z
     amountMinor: money,
     currency: z.literal('IRR'),
     correlationId: z.string().min(1).max(80),
+    items: z
+      .array(
+        z.object({ itemId: z.uuid(), amountMinor: z.string().regex(/^(0|[1-9][0-9]*)$/) }).strict(),
+      )
+      .max(50)
+      .optional(),
   })
   .strict();
 const bankResult = z
@@ -141,6 +148,7 @@ export class Payments implements OnModuleInit, OnModuleDestroy {
       row.amount !== p.amountMinor
     )
       throw new InvalidMessage('CONFLICTING_PAYMENT_IDENTITY');
+    await ensurePaymentLines(sql, row, p.items);
     if (inserted.length) await this.emit(sql, row, 'ACCEPTED');
     if (cancel) {
       await sql.query(

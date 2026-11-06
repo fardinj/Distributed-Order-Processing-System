@@ -298,12 +298,20 @@ try {
   assert.equal(discrepancy.body[0].affectedReservations[0].id, holdId);
   const audit = await api(`/api/admin/products/${stockId}/audit`, admin);
   assert.ok(audit.body.some((entry) => entry.action === 'InventoryReconciled'));
-  const reviews = await api('/api/admin/manual-review', admin);
-  assert.ok(
-    reviews.body.items.some(
-      (entry) => entry.metadata.discrepancyId === correction.body.discrepancyId,
-    ),
+  let reviews = await api('/api/admin/manual-review?limit=100', admin);
+  let found = reviews.body.items.some(
+    (entry) => entry.metadata.discrepancyId === correction.body.discrepancyId,
   );
+  for (let page = 0; !found && reviews.body.nextCursor && page < 100; page++) {
+    reviews = await api(
+      `/api/admin/manual-review?limit=100&cursor=${reviews.body.nextCursor}`,
+      admin,
+    );
+    found = reviews.body.items.some(
+      (entry) => entry.metadata.discrepancyId === correction.body.discrepancyId,
+    );
+  }
+  assert.ok(found, 'New discrepancy remains discoverable across retained review pages');
   await db('commerce', async (client) => {
     const row = await client.query('SELECT status FROM reservations WHERE id=$1', [holdId]);
     assert.equal(row.rows[0].status, 'ACTIVE');

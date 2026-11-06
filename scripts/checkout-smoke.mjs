@@ -261,6 +261,13 @@ try {
     ];
     const parallel = await Promise.all(Array.from({ length: 50 }, () => create(input, key)));
     assert.ok(
+      parallel.every((r) => [201, 503].includes(r.status)),
+      JSON.stringify(parallel),
+    );
+    // Gateway bounds concurrent requests; rejected arrivals retry the original key after the burst drains.
+    for (let i = 0; i < parallel.length; i++)
+      if (parallel[i].status === 503) parallel[i] = await create(input, key);
+    assert.ok(
       parallel.every((r) => r.status === 201),
       JSON.stringify(parallel.filter((r) => r.status !== 201)),
     );

@@ -5,6 +5,7 @@ import { bootstrap, RuntimeModule } from '../../../packages/runtime/src/bootstra
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
 import { logRecord } from '../../../packages/runtime/src/logger.js';
 import { identityPathAllowed } from './identity-policy.js';
+import { Auxiliary } from '../../../packages/runtime/src/auxiliary.js';
 import {
   CurrentUser,
   type Principal,
@@ -27,11 +28,11 @@ class GatewayController {
   index() {
     return {
       application: 'tops',
-      milestone: 'fulfillment-refunds',
+      milestone: 'cancellation-recovery-redis',
       health: '/health/ready',
       identity: '/identity/realms/tops/.well-known/openid-configuration',
       message:
-        'Authenticated catalog/admin, checkout, payment recovery, typed fulfillment and whole-line refunds are available under /api. Public cancellation/review actions and the Persian UI are subsequent milestones.',
+        'Authenticated catalog/admin, checkout, payment recovery, fulfillment, refunds, cancellation and guarded review/retry actions are available under /api. The Persian UI is the next milestone.',
     };
   }
   @Public()
@@ -57,6 +58,63 @@ class GatewayModule {}
 
 bootstrap(GatewayModule, config, (app) => {
   const verifier = app.get(TokenVerifier);
+  const auxiliary = app.get(Auxiliary);
+  const active = { ordinary: 0, recovery: 0 };
+  const edgeActive = { ordinary: 0, recovery: 0 };
+  app.use(
+    async (
+      request: import('express').Request,
+      response: import('express').Response,
+      next: import('express').NextFunction,
+    ) => {
+      if (
+        !request.path.startsWith('/api/') &&
+        !request.path.startsWith('/identity/') &&
+        !request.path.startsWith('/auth/')
+      )
+        return next();
+      // Bound pending Redis/JWT work too, before any dependency wait or authentication.
+      const edgeLane =
+        request.method !== 'GET' && /^\/api\/orders\/.+/.test(request.path)
+          ? 'recovery'
+          : 'ordinary';
+      if (edgeActive[edgeLane] >= (edgeLane === 'recovery' ? 16 : 48)) {
+        response.setHeader('retry-after', '2');
+        response.status(503).json({ message: 'Edge capacity busy; retry with the same key' });
+        return;
+      }
+      edgeActive[edgeLane]++;
+      let edgeReleased = false;
+      const releaseEdge = () => {
+        if (!edgeReleased) {
+          edgeReleased = true;
+          edgeActive[edgeLane]--;
+        }
+      };
+      response.once('finish', releaseEdge);
+      response.once('close', releaseEdge);
+      const quota = await auxiliary.quota(request.socket.remoteAddress ?? 'unknown', 'edge', 6000);
+      response.setHeader('x-rate-limit-mode', quota.mode);
+      if (!quota.allowed) {
+        response.setHeader('retry-after', quota.retryAfter);
+        response.status(429).json({ message: 'Request quota exceeded' });
+        return;
+      }
+      if (
+        request.method === 'POST' &&
+        /\/protocol\/openid-connect\/(token|auth)\/?$/.test(request.path)
+      ) {
+        const login = await auxiliary.quota(request.socket.remoteAddress ?? 'unknown', 'login', 5);
+        response.setHeader('x-rate-limit-mode', login.mode);
+        if (!login.allowed) {
+          response.setHeader('retry-after', login.retryAfter);
+          response.status(429).json({ message: 'Login quota exceeded' });
+          return;
+        }
+      }
+      next();
+    },
+  );
   const commerceProxy = createProxyMiddleware({
     target: 'http://commerce:3000',
     changeOrigin: true,
@@ -88,7 +146,42 @@ bootstrap(GatewayModule, config, (app) => {
       if (!/^\/api\/(products(?:\/|$)|admin(?:\/|$)|orders(?:\/|$))/.test(request.path))
         return next();
       try {
-        await verifier.authenticate(request.headers.authorization);
+        const principal = await verifier.authenticate(request.headers.authorization);
+        const lane =
+          request.method === 'GET'
+            ? 'read'
+            : request.path.replace(/\/+$/, '') === '/api/orders'
+              ? 'new'
+              : request.path.startsWith('/api/admin/')
+                ? 'admin'
+                : 'recovery';
+        const quota = await auxiliary.quota(
+          principal.id,
+          lane,
+          { read: 1800, new: 120, admin: 180, recovery: 600 }[lane],
+        );
+        response.setHeader('x-rate-limit-mode', quota.mode);
+        if (!quota.allowed) {
+          response.setHeader('retry-after', quota.retryAfter);
+          response.status(429).json({ message: 'Request quota exceeded', lane });
+          return;
+        }
+        const execution = lane === 'recovery' ? 'recovery' : 'ordinary';
+        if (active[execution] >= (execution === 'recovery' ? 8 : 24)) {
+          response.setHeader('retry-after', '2');
+          response.status(503).json({ message: 'Request capacity busy; retry with the same key' });
+          return;
+        }
+        active[execution]++;
+        let released = false;
+        const release = () => {
+          if (!released) {
+            released = true;
+            active[execution]--;
+          }
+        };
+        response.once('finish', release);
+        response.once('close', release);
         commerceProxy(request, response, next);
       } catch (error) {
         const status =

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Client } from 'pg';
+import { setTimeout as pause } from 'node:timers/promises';
 
 const gateway = 'http://gateway:3000';
 const identity = 'http://identity:8080/identity';
@@ -299,7 +300,9 @@ try {
   assert.ok(audit.body.some((entry) => entry.action === 'InventoryReconciled'));
   const reviews = await api('/api/admin/manual-review', admin);
   assert.ok(
-    reviews.body.some((entry) => entry.metadata.discrepancyId === correction.body.discrepancyId),
+    reviews.body.items.some(
+      (entry) => entry.metadata.discrepancyId === correction.body.discrepancyId,
+    ),
   );
   await db('commerce', async (client) => {
     const row = await client.query('SELECT status FROM reservations WHERE id=$1', [holdId]);
@@ -506,6 +509,8 @@ await api(
   { expectedVersion: 2, reason: 'Finished integration example' },
   randomUUID(),
 );
+// Public catalog reads may retain a pre-edit snapshot for the documented 2-second TTL.
+await pause(2100);
 assert.equal((await api(`/api/products/${productId}`, customerA)).status, 404);
 assert.equal((await api(`/api/admin/products/${productId}`, admin)).status, 200);
 assert.equal(

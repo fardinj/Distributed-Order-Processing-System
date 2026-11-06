@@ -62,6 +62,7 @@ export class CheckoutService {
   async detail(sql: Sql, id: string, customer: string, admin = false) {
     const orders = await sql.query(
       `SELECT id,customer_id AS "customerId",status,currency,total_minor::text AS "totalMinor",payment_operation_key AS "paymentOperationKey",
+      workflow_version AS "workflowVersion",cancellation_requested AS "cancellationRequested",fulfillment_started_at AS "fulfillmentStartedAt",
       checkout_revision AS "checkoutRevision",checkout_expires_at AS "expiresAt",preparation_version AS "preparationVersion",
       preparation_version<checkout_revision AS "preparationPending",created_at AS "createdAt"
       FROM orders WHERE id=$1::uuid AND (customer_id=$2 OR $3)`,
@@ -70,6 +71,7 @@ export class CheckoutService {
     if (!orders[0]) throw new NotFoundException('Order not found');
     const items = await sql.query(
       `SELECT id,product_id AS "productId",name,type,quantity,generation,attempt_count AS "attemptCount",unit_price_minor::text AS "unitPriceMinor",
+      retry_version AS "retryVersion",cycle_start_attempt AS "cycleStartAttempt",next_attempt_at AS "nextAttemptAt",
       line_total_minor::text AS "lineTotalMinor",subscription_days AS "subscriptionDays",status,disposition
       FROM order_items WHERE order_id=$1::uuid ORDER BY id`,
       [id],
@@ -166,6 +168,7 @@ export class CheckoutService {
   private async acquire(sql: Sql, id: string) {
     const budget = await sql.query(
       `UPDATE admission_budget SET used=used+1 WHERE id=1 AND accepting_new AND used<capacity
+        AND storage_healthy AND storage_checked_at>clock_timestamp()-interval '30 seconds'
         AND (SELECT count(*) FROM (SELECT 1 FROM outbox WHERE published_at IS NULL LIMIT 10000) backlog)<10000
         AND (SELECT count(*) FROM (SELECT 1 FROM inbox_messages WHERE status='PENDING' LIMIT 10000) backlog)<10000
         RETURNING id`,

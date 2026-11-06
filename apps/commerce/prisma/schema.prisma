@@ -1,7 +1,218 @@
-// Domain tables and custom exact-NUMERIC migrations are roadmap step 2.
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+}
+
+model Product {
+  id               String                 @id @db.Uuid
+  name             String                 @db.VarChar(200)
+  type             String                 @db.VarChar(20)
+  priceMinor       Decimal                @map("price_minor") @db.Decimal
+  currency         String                 @default("IRR") @db.VarChar(3)
+  subscriptionDays Int?                   @map("subscription_days")
+  digitalMetadata  Json?                  @map("digital_metadata")
+  active           Boolean                @default(true)
+  version          Int                    @default(1)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+  inventory        Inventory?
+  items            OrderItem[]
+  adjustments      InventoryAdjustment[]
+  discrepancies    InventoryDiscrepancy[]
+
+  @@map("products")
+}
+
+model Inventory {
+  productId      String   @id @map("product_id") @db.Uuid
+  available      BigInt   @default(0)
+  observedOnHand BigInt?  @map("observed_on_hand")
+  requiresReview Boolean  @default(false) @map("requires_review")
+  version        Int      @default(1)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("inventory")
+}
+
+model InventoryAdjustment {
+  id              String   @id @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  actorId         String   @map("actor_id") @db.VarChar(128)
+  kind            String   @db.VarChar(20)
+  delta           BigInt
+  beforeAvailable BigInt   @map("before_available")
+  afterAvailable  BigInt   @map("after_available")
+  reason          String   @db.VarChar(1000)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, createdAt])
+  @@map("inventory_adjustments")
+}
+
+model InventoryDiscrepancy {
+  id                   String   @id @db.Uuid
+  productId            String   @map("product_id") @db.Uuid
+  countedOnHand        BigInt   @map("counted_on_hand")
+  heldQuantity         BigInt   @map("held_quantity")
+  shortage             BigInt
+  affectedReservations Json     @map("affected_reservations")
+  status               String   @default("OPEN") @db.VarChar(20)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  product              Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, status])
+  @@map("inventory_discrepancies")
+}
+
+model AuditLog {
+  id         String   @id @db.Uuid
+  actorId    String   @map("actor_id") @db.VarChar(128)
+  resourceId String   @map("resource_id") @db.Uuid
+  action     String   @db.VarChar(80)
+  reason     String   @db.VarChar(1000)
+  before     Json?
+  after      Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([resourceId, createdAt])
+  @@map("audit_logs")
+}
+
+model CustomerOrder {
+  id                    String             @id @db.Uuid
+  customerId            String             @map("customer_id") @db.VarChar(128)
+  status                String             @default("CHECKOUT_RESERVED") @db.VarChar(40)
+  currency              String             @default("IRR") @db.VarChar(3)
+  totalMinor            Decimal            @map("total_minor") @db.Decimal
+  checkoutRevision      Int                @default(1) @map("checkout_revision")
+  paymentVersion        Int                @default(0) @map("payment_version")
+  cancellationRequested Boolean            @default(false) @map("cancellation_requested")
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  items                 OrderItem[]
+  revisions             CheckoutRevision[]
+  events                OrderEvent[]
+
+  @@index([customerId, createdAt, id])
+  @@index([status, createdAt, id])
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String        @id @db.Uuid
+  orderId          String        @map("order_id") @db.Uuid
+  productId        String        @map("product_id") @db.Uuid
+  name             String        @db.VarChar(200)
+  type             String        @db.VarChar(20)
+  quantity         Int
+  unitPriceMinor   Decimal       @map("unit_price_minor") @db.Decimal
+  lineTotalMinor   Decimal       @map("line_total_minor") @db.Decimal
+  subscriptionDays Int?          @map("subscription_days")
+  status           String        @default("PENDING") @db.VarChar(30)
+  disposition      String        @default("FULFILL") @db.VarChar(30)
+  generation       Int           @default(0)
+  attemptCount     Int           @default(0) @map("attempt_count")
+  nextAttemptAt    DateTime?     @map("next_attempt_at") @db.Timestamptz(6)
+  order            CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservations     Reservation[]
+
+  @@unique([id, productId])
+  @@index([orderId, status])
+  @@map("order_items")
+}
+
+model CheckoutRevision {
+  orderId    String        @map("order_id") @db.Uuid
+  version    Int
+  snapshot   Json
+  totalMinor Decimal       @map("total_minor") @db.Decimal
+  confirmed  Boolean       @default(false)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  order      CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@id([orderId, version])
+  @@map("checkout_revisions")
+}
+
+model Reservation {
+  id         String    @id @db.Uuid
+  itemId     String    @map("item_id") @db.Uuid
+  productId  String    @map("product_id") @db.Uuid
+  generation Int
+  quantity   Int
+  status     String    @default("ACTIVE") @db.VarChar(30)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  item       OrderItem @relation(fields: [itemId, productId], references: [id, productId], onDelete: Restrict)
+
+  @@unique([itemId, generation])
+  @@index([productId, status])
+  @@map("reservations")
+}
+
+model OrderEvent {
+  id        String        @id @db.Uuid
+  orderId   String        @map("order_id") @db.Uuid
+  type      String        @db.VarChar(80)
+  metadata  Json
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt, id])
+  @@map("order_events")
+}
+
+model ReviewCase {
+  id         String   @id @db.Uuid
+  resourceId String   @map("resource_id") @db.Uuid
+  reason     String   @db.VarChar(80)
+  status     String   @default("OPEN") @db.VarChar(20)
+  metadata   Json
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@map("review_cases")
+}
+
+model IdempotencyRecord {
+  id          String   @id @db.Uuid
+  actorId     String   @map("actor_id") @db.VarChar(128)
+  operation   String   @db.VarChar(120)
+  key         String   @db.VarChar(128)
+  fingerprint String   @db.VarChar(64)
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([actorId, operation, key])
+  @@map("idempotency_records")
+}
+
+model Outbox {
+  id          String    @id @db.Uuid
+  kind        String    @db.VarChar(100)
+  aggregateId String    @map("aggregate_id") @db.Uuid
+  generation  Int
+  payload     Json
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  claimToken  String?   @map("claim_token") @db.Uuid
+  leaseUntil  DateTime? @map("lease_until") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  attempts    Int       @default(0)
+
+  @@unique([kind, aggregateId, generation])
+  @@map("outbox")
+}
+
+model ConsumerReceipt {
+  consumer  String   @db.VarChar(100)
+  messageId String   @map("message_id") @db.Uuid
+  handledAt DateTime @default(now()) @map("handled_at") @db.Timestamptz(6)
+
+  @@id([consumer, messageId])
+  @@map("consumer_receipts")
 }
 
 datasource db {

@@ -13,7 +13,7 @@ COPY packages/runtime/package.json packages/runtime/package.json
 RUN npm ci --no-audit --no-fund
 
 FROM dependencies AS development
-COPY tsconfig.json .prettierrc.json compose.yaml compose.dev.yaml ./
+COPY tsconfig.json .prettierrc.json .prettierignore compose.yaml compose.dev.yaml ./
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts

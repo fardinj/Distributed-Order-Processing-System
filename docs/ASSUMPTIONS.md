@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01-Q21 choices are selected. Steps 1-6 are implemented as of 2026-11-06. Public cancellation/retry/review, recovery-cost policy, Redis features and storage admission are described in [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md), with [executed evidence](RECOVERY_VERIFICATION.md). The Persian UI remains step 7.
+Status: Q01-Q21 choices are selected. Steps 1-7 are implemented as of 2026-11-06. Recovery/Redis contracts remain in [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md). The Persian UI, static-client engineering choices and executed evidence are in [UI_GUIDE.md](UI_GUIDE.md) and [UI_VERIFICATION.md](UI_VERIFICATION.md). Step 8 evidence/load work is next.
 
 ## Assignment requirements
 

@@ -461,6 +461,30 @@ services:
         redis_password,
       ]
 
+  ui-checks:
+    profiles: [tools]
+    entrypoint: [node, scripts/ui-smoke.mjs]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: ui-verification
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+    secrets:
+      [
+        fixture_admin_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        user_customer_a_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+      ]
+    volumes: ['./.local/verification/ui:/verification']
+    networks: [private]
+    mem_limit: 1536m
+    init: true
+
 networks:
   edge:
   private:

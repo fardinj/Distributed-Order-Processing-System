@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: Q01-Q21 choices are selected. Steps 1-6 are implemented as of 2026-11-06; see [step-6 evidence](RECOVERY_VERIFICATION.md) and earlier milestone reports. Step 7 (small Persian UI) is next. The expanded scope is not bound by the original 5-7-day estimate.
+Status: Q01-Q21 choices are selected. Steps 1-7 are implemented as of 2026-11-06; see [UI evidence](UI_VERIFICATION.md) and earlier milestone reports. Step 8 (failure/load/submission evidence) is next. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -74,6 +74,8 @@ Implemented contracts/defaults: [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATIO
 Exit: cancellation/fulfillment has one winner; more than three lookups can reconcile payment; healthy recoverable work is not forced into review solely by count; overload preserves admitted workflows and rejects new work transparently.
 
 ## 7. Small Persian UI
+
+Implemented: [usage guide](UI_GUIDE.md), [browser/API evidence](UI_VERIFICATION.md), root PRODUCT.md and DESIGN.md. Static assets live in the gateway; no new steady service was added. Real customer OIDC and guarded admin fixture flows were exercised, with desktop/mobile review.
 
 - Serve static RTL customer/admin client through gateway; integrate OIDC without client/admin secrets.
 - Customer: catalog, quantity selection, revised checkout/timer, simulated payment, item/order/refund progress, eligible cancel/retry.

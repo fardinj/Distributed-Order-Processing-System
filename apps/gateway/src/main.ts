@@ -1,5 +1,7 @@
 import 'reflect-metadata';
-import { Controller, Get, Module } from '@nestjs/common';
+import { Controller, Get, Module, Res } from '@nestjs/common';
+import type { Response } from 'express';
+import { fileURLToPath } from 'node:url';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { bootstrap, RuntimeModule } from '../../../packages/runtime/src/bootstrap.js';
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
@@ -16,6 +18,7 @@ import {
 } from '../../../packages/runtime/src/security.js';
 
 const config = serviceConfig('gateway');
+const webRoot = fileURLToPath(new URL('../web/', import.meta.url));
 const publicUrl = new URL(process.env.PUBLIC_URL ?? 'http://localhost:8080');
 if (publicUrl.pathname !== '/' || publicUrl.username || publicUrl.password) {
   throw new Error('PUBLIC_URL must be an origin, without credentials or path');
@@ -24,15 +27,21 @@ if (publicUrl.pathname !== '/' || publicUrl.username || publicUrl.password) {
 @Controller()
 class GatewayController {
   @Public()
-  @Get()
-  index() {
+  @Get(['', 'auth/callback'])
+  index(@Res() response: Response) {
+    response.setHeader('cache-control', 'no-store');
+    response.setHeader('referrer-policy', 'no-referrer');
+    return response.sendFile('index.html', { root: webRoot });
+  }
+  @Public()
+  @Get('status')
+  status() {
     return {
       application: 'tops',
-      milestone: 'cancellation-recovery-redis',
+      milestone: 'persian-operations-ui',
       health: '/health/ready',
       identity: '/identity/realms/tops/.well-known/openid-configuration',
-      message:
-        'Authenticated catalog/admin, checkout, payment recovery, fulfillment, refunds, cancellation and guarded review/retry actions are available under /api. The Persian UI is the next milestone.',
+      message: 'Persian customer/admin UI is available at /. APIs remain authenticated under /api.',
     };
   }
   @Public()
@@ -57,6 +66,15 @@ class GatewayController {
 class GatewayModule {}
 
 bootstrap(GatewayModule, config, (app) => {
+  app.useStaticAssets(webRoot, {
+    prefix: '/ui/',
+    index: false,
+    fallthrough: false,
+    setHeaders(response) {
+      response.setHeader('cache-control', 'no-cache');
+      response.setHeader('x-content-type-options', 'nosniff');
+    },
+  });
   const verifier = app.get(TokenVerifier);
   const auxiliary = app.get(Auxiliary);
   const active = { ordinary: 0, recovery: 0 };
@@ -221,8 +239,8 @@ bootstrap(GatewayModule, config, (app) => {
           }
         },
       },
-      proxyTimeout: 5000,
-      timeout: 6000,
+      proxyTimeout: 15000,
+      timeout: 16000,
     }),
   );
 }).catch(() => {

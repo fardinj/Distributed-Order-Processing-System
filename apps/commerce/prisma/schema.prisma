@@ -93,6 +93,8 @@ model CustomerOrder {
   financialProjection   OrderFinancialProjection?
   paymentOperationKey   String?                   @unique @map("payment_operation_key") @db.VarChar(150)
   paymentEntryRevision  Int?                      @map("payment_entry_revision")
+  fulfillmentStartedAt  DateTime?                 @map("fulfillment_started_at") @db.Timestamptz(6)
+  workflowVersion       Int                       @default(0) @map("workflow_version")
   paymentVersion        Int                       @default(0) @map("payment_version")
   cancellationRequested Boolean                   @default(false) @map("cancellation_requested")
   createdAt             DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -268,18 +270,20 @@ model AdmissionSlot {
 }
 
 model OrderFinancialProjection {
-  orderId            String        @id @map("order_id") @db.Uuid
-  revision           Int
-  operationKey       String?       @map("operation_key") @db.VarChar(150)
-  bankReference      String?       @map("bank_reference") @db.VarChar(200)
-  bankDeadlineAt     DateTime?     @map("bank_deadline_at") @db.Timestamptz(6)
-  sourceVersion      Int           @default(0) @map("source_version")
-  status             String        @default("NOT_REQUESTED") @db.VarChar(40)
-  pending            Boolean       @default(false)
-  refundedMinor      Decimal       @default(0) @map("refunded_minor") @db.Decimal
-  pendingRefundMinor Decimal       @default(0) @map("pending_refund_minor") @db.Decimal
-  updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
-  order              CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId             String        @id @map("order_id") @db.Uuid
+  revision            Int
+  operationKey        String?       @map("operation_key") @db.VarChar(150)
+  bankReference       String?       @map("bank_reference") @db.VarChar(200)
+  bankDeadlineAt      DateTime?     @map("bank_deadline_at") @db.Timestamptz(6)
+  sourceVersion       Int           @default(0) @map("source_version")
+  status              String        @default("NOT_REQUESTED") @db.VarChar(40)
+  pending             Boolean       @default(false)
+  refundSourceVersion Int           @default(0) @map("refund_source_version")
+  summary             String        @default("NONE") @db.VarChar(30)
+  refundedMinor       Decimal       @default(0) @map("refunded_minor") @db.Decimal
+  pendingRefundMinor  Decimal       @default(0) @map("pending_refund_minor") @db.Decimal
+  updatedAt           DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order               CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@map("order_financial_projections")
 }
@@ -292,4 +296,111 @@ model FulfillmentJob {
   item        OrderItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@map("fulfillment_jobs")
+}
+
+// Operational ledger foreign keys/checks are defined in the matching forward SQL migration.
+model DigitalEntitlement {
+  customerId String   @map("customer_id") @db.VarChar(128)
+  productId  String   @map("product_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([customerId, productId])
+  @@map("digital_entitlements")
+}
+
+model DigitalGrant {
+  itemId     String   @id @map("item_id") @db.Uuid
+  customerId String   @map("customer_id") @db.VarChar(128)
+  productId  String   @map("product_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("digital_grants")
+}
+
+model Subscription {
+  customerId String   @map("customer_id") @db.VarChar(128)
+  productId  String   @map("product_id") @db.Uuid
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@id([customerId, productId])
+  @@map("subscriptions")
+}
+
+model SubscriptionExtension {
+  itemId            String    @id @map("item_id") @db.Uuid
+  customerId        String    @map("customer_id") @db.VarChar(128)
+  productId         String    @map("product_id") @db.Uuid
+  days              Int
+  previousExpiresAt DateTime? @map("previous_expires_at") @db.Timestamptz(6)
+  newExpiresAt      DateTime  @map("new_expires_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("subscription_extensions")
+}
+
+model Shipment {
+  itemId        String   @id @map("item_id") @db.Uuid
+  reservationId String   @unique @map("reservation_id") @db.Uuid
+  reference     String   @unique @db.VarChar(100)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("shipments")
+}
+
+model FulfillmentAttempt {
+  id        String   @id @db.Uuid
+  itemId    String   @map("item_id") @db.Uuid
+  attempt   Int
+  result    String   @db.VarChar(40)
+  reason    String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([itemId, attempt])
+  @@map("fulfillment_attempts")
+}
+
+model FulfillmentSimulationRule {
+  itemId           String   @id @map("item_id") @db.Uuid
+  notBefore        DateTime @default(now()) @map("not_before") @db.Timestamptz(6)
+  outcome          String   @default("SUCCESS") @db.VarChar(30)
+  failUntilAttempt Int      @default(1) @map("fail_until_attempt")
+
+  @@map("fulfillment_simulation_rules")
+}
+
+model ItemRefundDisposition {
+  id              String   @id @db.Uuid
+  itemId          String   @unique @map("item_id") @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  operationKey    String   @unique @map("operation_key") @db.VarChar(150)
+  amountMinor     Decimal  @map("amount_minor") @db.Decimal
+  reason          String   @db.VarChar(1000)
+  status          String   @default("PENDING") @db.VarChar(30)
+  sourceVersion   Int      @default(0) @map("source_version")
+  billingRefundId String?  @map("billing_refund_id") @db.Uuid
+  bankReference   String?  @map("bank_reference") @db.VarChar(200)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("item_refund_dispositions")
+}
+
+model RefundProjectionLog {
+  id            String   @id @db.Uuid
+  dispositionId String   @map("disposition_id") @db.Uuid
+  type          String   @db.VarChar(80)
+  metadata      Json
+  createdAt     DateTime @map("created_at") @db.Timestamptz(6)
+
+  @@map("refund_projection_logs")
+}
+
+model StockDisposition {
+  reservationId String   @id @map("reservation_id") @db.Uuid
+  dispositionId String   @unique @map("disposition_id") @db.Uuid
+  kind          String   @db.VarChar(30)
+  actorId       String   @map("actor_id") @db.VarChar(128)
+  reason        String   @db.VarChar(1000)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("stock_dispositions")
 }

@@ -14,6 +14,7 @@ model Payment {
   version          Int              @default(1)
   checkoutRevision Int              @default(1) @map("checkout_revision")
   correlationId    String           @default("payment-recovery") @map("correlation_id") @db.VarChar(80)
+  financialVersion Int              @default(0) @map("financial_version")
   bankDeadlineAt   DateTime?        @map("bank_deadline_at") @db.Timestamptz(6)
   bankReference    String?          @map("bank_reference") @db.VarChar(200)
   lookupCount      Int              @default(0) @map("lookup_count")
@@ -50,6 +51,11 @@ model Refund {
   status          String       @default("PENDING") @db.VarChar(30)
   reason          String       @db.VarChar(1000)
   version         Int          @default(1)
+  correlationId   String       @default("refund-recovery") @map("correlation_id") @db.VarChar(80)
+  lookupCount     Int          @default(0) @map("lookup_count")
+  leaseToken      String?      @map("lease_token") @db.Uuid
+  leaseUntil      DateTime?    @map("lease_until") @db.Timestamptz(6)
+  bankReference   String?      @map("bank_reference") @db.VarChar(200)
   nextReconcileAt DateTime?    @map("next_reconcile_at") @db.Timestamptz(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   payment         Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
@@ -153,4 +159,13 @@ model PreparedCheckout {
   updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("prepared_checkouts")
+}
+
+model PaymentLine {
+  paymentId   String  @map("payment_id") @db.Uuid
+  itemId      String  @map("item_id") @db.Uuid
+  amountMinor Decimal @map("amount_minor") @db.Decimal
+
+  @@id([paymentId, itemId])
+  @@map("payment_lines")
 }

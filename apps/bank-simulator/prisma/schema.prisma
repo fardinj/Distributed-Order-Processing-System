@@ -19,12 +19,16 @@ model BankOperation {
 }
 
 model BankRefund {
-  operationKey String        @id @map("operation_key") @db.VarChar(150)
-  chargeKey    String        @map("charge_key") @db.VarChar(150)
-  amountMinor  Decimal       @map("amount_minor") @db.Decimal
-  status       String        @default("PENDING") @db.VarChar(30)
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  charge       BankOperation @relation(fields: [chargeKey], references: [operationKey], onDelete: Restrict)
+  reference         String?       @db.VarChar(200)
+  simulationOutcome String        @default("SUCCEED") @map("simulation_outcome") @db.VarChar(30)
+  attemptCount      Int           @default(0) @map("attempt_count")
+  faultCount        Int           @default(1) @map("fault_count")
+  operationKey      String        @id @map("operation_key") @db.VarChar(150)
+  chargeKey         String        @map("charge_key") @db.VarChar(150)
+  amountMinor       Decimal       @map("amount_minor") @db.Decimal
+  status            String        @default("PENDING") @db.VarChar(30)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  charge            BankOperation @relation(fields: [chargeKey], references: [operationKey], onDelete: Restrict)
 
   @@map("bank_refunds")
 }
@@ -55,4 +59,12 @@ model BankChargeCancellation {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("bank_charge_cancellations")
+}
+
+model BankRefundSimulationAssignment {
+  operationKey String @id @map("operation_key") @db.VarChar(150)
+  outcome      String @db.VarChar(30)
+  faultCount   Int    @default(1) @map("fault_count")
+
+  @@map("bank_refund_simulation_assignments")
 }

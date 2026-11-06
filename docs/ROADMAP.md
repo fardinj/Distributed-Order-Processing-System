@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: Q01-Q21 choices are selected. Steps 1-3 are implemented as of 2026-11-06; see [step-1 evidence](SKELETON_VERIFICATION.md), [step-2 evidence](FOUNDATIONS_VERIFICATION.md) and [step-3 evidence](CHECKOUT_VERIFICATION.md). Step 4 is next. The expanded scope is not bound by the original 5-7-day estimate.
+Status: Q01-Q21 choices are selected. Steps 1-4 are implemented as of 2026-11-06; see [step-4 evidence](PAYMENT_VERIFICATION.md) and the earlier milestone reports. Step 5 is next. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -39,6 +39,8 @@ Completed: SQL capacity/slots, atomic canonical create/replay, five-minute holds
 Exit: parallel replay creates one order; last-unit contention is resolved before payment; rejected requests produce no leaked holds/charges; broker outage retains committed work in SQL.
 
 ## 4. Payment-owned stock and bank recovery
+
+Completed: atomic entry/reacquisition/promotion, stable financial identities, Billing recovery leases/attempts/status outbox, authenticated Bank execution and durable 900-second deadline, versioned stock/result application, durable fulfillment jobs and internal no-charge cancellation fences. Jobs execute in step 5; public cancellation eligibility/actions arrive in step 6. See PAYMENT_VERIFICATION.md.
 
 - Gateway entry atomically promotes current stock to PAYMENT_PENDING and enqueues a stable payment command. Old checkout expiry cannot release it.
 - Billing deduplicates commands and invokes Bank outside SQL transactions. Bank operation initialization fixes the 15-minute pending deadline; immutable final outcomes and idempotent charge keys prevent duplicates.

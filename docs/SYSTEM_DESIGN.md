@@ -1,6 +1,6 @@
 # Backend system design
 
-Status: this is the selected target design. Steps 1-3 implement private services, schemas, identity/admin APIs, admission/checkout and reliable preparation. Payment/fulfillment/refund workflows remain later milestones. See [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) for implemented contracts and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md) for evidence.
+Status: this is the selected target design. Steps 1-4 implement private services, identity/admin APIs, checkout/admission, reliable messaging and payment/Bank recovery with durable fulfillment dispatch. Typed fulfillment/refund execution and public cancellation remain later. See [PAYMENTS_AND_BANK_RECOVERY.md](PAYMENTS_AND_BANK_RECOVERY.md) and [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md).
 
 ## Services and ownership
 

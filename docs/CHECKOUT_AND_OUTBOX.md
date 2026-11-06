@@ -1,6 +1,6 @@
 # Checkout and reliable preparation
 
-Step 3 implementation. Payment entry, charge/refund execution and fulfillment are step 4 onward. Browser flows and the Persian UI remain step 7. Use bearer tokens described in [API_FOUNDATIONS.md](API_FOUNDATIONS.md); no public fault controls or force-state endpoints exist.
+Step 3 checkout/transport contracts, extended by [step-4 payment entry and Bank recovery](PAYMENTS_AND_BANK_RECOVERY.md). Fulfillment/refund execution follows in step 5. Browser flows and the Persian UI remain step 7. Use bearer tokens described in [API_FOUNDATIONS.md](API_FOUNDATIONS.md); no public fault controls or force-state endpoints exist.
 
 ## Client API
 
@@ -40,7 +40,7 @@ An expired create replay remains expired. Explicit refresh acquires capacity aga
 
 Current catalog name/price/duration changes during an expired refresh also produce a changed revision requiring confirmation, consistent with Q13/Q21. Active holds keep their snapshots until expiry; refresh/confirm never extends the current timer. Removed lines stay `CANCELLED` with `CANCEL` disposition; zero quantities are not stored as payable items.
 
-Expiry matches only editable checkout orders and due ACTIVE reservations. PAYMENT_PENDING/ALLOCATED stock is never released by checkout expiry. Payment promotion will be implemented in step 4 under the same parent/stock locks. If inventory is quarantined by an admin shortage, expiry preserves its zero sellable stock rather than relisting nonexistent units. The discrepancy evidence remains for the later resolution workflow.
+Expiry matches only editable checkout orders and due ACTIVE reservations. PAYMENT_PENDING/ALLOCATED stock is never released by checkout expiry. Payment promotion is implemented in step 4 under the same parent/stock locks. If inventory is quarantined by an admin shortage, expiry preserves its zero sellable stock rather than relisting nonexistent units. The discrepancy evidence remains for the later resolution workflow.
 
 Lock order for existing checkouts: parent order, admission budget, items, products by ID, inventory by product ID, reservations by ID. Admin stock operations use product then inventory and do not take admission/order locks. New orders hold only their newly inserted parent before taking budget/stock. This avoids a budget/stock lock inversion between creates and expiry. SQL statement/lock timeouts bound contention; rejected operations roll back.
 
@@ -62,7 +62,7 @@ The command locks the budget, recomputes used slots and refuses to discard slots
 
 Commerce and Billing each run one bounded transport loop inside their existing process/pool. Commerce publishes `CheckoutPrepared` with order/customer/revision, exact total, immutable payable lines and correlation ID. Billing validates it and maintains its own `prepared_checkouts` projection, then commits `CheckoutPreparationAcknowledged` to its outbox in the same transaction as the projection and receipt. This is preparation only: **no payment row or bank call**. Catalog notifications are durably observed by Billing with no financial effect yet.
 
-Commerce applies acknowledgments monotonically. An old acknowledgment cannot mark a newer revision prepared. Order detail exposes `preparationVersion` and `preparationPending`; the financial projection separately reports `sourceVersion`, status, pending flag and exact confirmed/pending refund amounts. Before payment it reports `NOT_REQUESTED`, version 0 and pending false. Preparation success is never presented as payment success. Later Billing financial result consumers will advance this projection in step 4/5.
+Commerce applies acknowledgments monotonically. An old acknowledgment cannot mark a newer revision prepared. Order detail exposes `preparationVersion` and `preparationPending`; the financial projection separately reports `sourceVersion`, status, pending flag and exact confirmed/pending refund amounts. Before payment it reports `NOT_REQUESTED`, version 0 and pending false. Preparation success is never presented as payment success. Step-4 Billing financial results now advance this projection; refund results arrive in step 5.
 
 Transport properties:
 

@@ -4,6 +4,8 @@ Status: scenarios below are the target verification plan, not blanket passing re
 
 ## Core invariant scenarios
 
+Step-4 executed financial identity, Bank deadline, payment-stock and no-charge fencing evidence is recorded in [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md). Public cancellation eligibility and actual refund/fulfillment execution remain later milestones.
+
 Step-3 executed admission, checkout, expiry and cross-owner preparation evidence is recorded in [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). The financial/fulfillment/cancellation cases below remain target scenarios until their milestones execute them.
 
 | Scenario | Required evidence |

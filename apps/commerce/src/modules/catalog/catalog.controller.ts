@@ -6,6 +6,8 @@ import {
 } from '../../../../../packages/runtime/src/security.js';
 import { parse, requestKey } from '../../../../../packages/runtime/src/validation.js';
 import { CatalogService } from './catalog.service.js';
+import { Auxiliary } from '../../../../../packages/runtime/src/auxiliary.js';
+import { z } from 'zod';
 import {
   adjustSchema,
   createProductSchema,
@@ -19,13 +21,19 @@ import {
 @Controller('products')
 @Roles('customer', 'admin')
 export class CatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly auxiliary: Auxiliary,
+  ) {}
   @Get() list(@Query() query: unknown) {
     const input = parse(listSchema, query);
-    return this.catalog.list(input.limit, input.cursor);
+    return this.auxiliary.cached(`list:${input.limit}:${input.cursor ?? ''}`, () =>
+      this.catalog.list(input.limit, input.cursor),
+    );
   }
   @Get(':id') get(@Param('id') id: string) {
-    return this.catalog.get(parse(idSchema, id));
+    const productId = parse(idSchema, id);
+    return this.auxiliary.cached(`item:${productId}`, () => this.catalog.get(productId));
   }
 }
 
@@ -105,7 +113,16 @@ export class AdminCatalogController {
   @Get('inventory/:id/discrepancies') discrepancies(@Param('id') id: string) {
     return this.catalog.discrepancies(parse(idSchema, id));
   }
-  @Get('manual-review') reviews() {
-    return this.catalog.reviews();
+  @Get('manual-review') reviews(@Query() query: unknown) {
+    const p = parse(
+      z
+        .object({
+          limit: z.coerce.number().int().min(1).max(100).default(25),
+          cursor: z.uuid().optional(),
+        })
+        .strict(),
+      query,
+    );
+    return this.catalog.reviews(p.limit, p.cursor);
   }
 }

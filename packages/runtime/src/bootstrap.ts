@@ -9,6 +9,7 @@ import { JsonLogger, logRecord } from './logger.js';
 import type { ServiceConfig } from './config.js';
 import { SecurityModule } from './security.js';
 import { InternalIdentityController } from './internal.controller.js';
+import { Auxiliary } from './auxiliary.js';
 
 @Module({})
 export class RuntimeModule {
@@ -20,7 +21,8 @@ export class RuntimeModule {
         HealthController,
         ...(config.name === 'gateway' ? [] : [InternalIdentityController]),
       ],
-      providers: [{ provide: CONFIG, useValue: config }, Dependencies],
+      providers: [{ provide: CONFIG, useValue: config }, Dependencies, Auxiliary],
+      exports: [Dependencies, Auxiliary],
     };
   }
 }

@@ -16,6 +16,7 @@ import { Settlement } from './modules/fulfillment/settlement.js';
 import { Fulfillment } from './modules/fulfillment/fulfillment.service.js';
 import { RefundResults } from './modules/fulfillment/refund-results.js';
 import { AdminShortage, FulfillmentReads } from './modules/fulfillment/fulfillment.controller.js';
+import { OrderActions, ReviewActions } from './modules/orders/actions.controller.js';
 
 const config = serviceConfig('commerce');
 @Module({
@@ -37,6 +38,8 @@ const config = serviceConfig('commerce');
     OrdersController,
     AdminShortage,
     FulfillmentReads,
+    OrderActions,
+    ReviewActions,
   ],
 })
 class CommerceModule {}

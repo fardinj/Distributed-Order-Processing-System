@@ -119,6 +119,35 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  storage-monitor:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    user: '65534:65534'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [sh, /opt/tops/storage-monitor.sh]
+    volumes:
+      - postgres-data:/storage:ro
+      - ./infrastructure/postgres/storage-monitor.sh:/opt/tops/storage-monitor.sh:ro
+    secrets: [commerce_db_password]
+    networks: [private]
+    mem_limit: 64m
+    cpus: 0.05
+    pids_limit: 20
+    logging: *logging
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'PGPASSWORD=$$(cat /run/secrets/commerce_db_password) PGCONNECT_TIMEOUT=2 psql -h postgres -U commerce_runtime -d commerce -tAc "SELECT storage_checked_at>clock_timestamp()-interval ''30 seconds'' FROM admission_budget WHERE id=1" | grep -qx t',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres: { condition: service_healthy }
+
   postgres:
     image: postgres:17.11-bookworm
     restart: unless-stopped
@@ -414,6 +443,23 @@ services:
   fulfillment-checks:
     <<: *payment-checks
     entrypoint: [node, scripts/fulfillment-smoke.mjs]
+
+  recovery-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/recovery-smoke.mjs]
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        redis_password,
+      ]
 
 networks:
   edge:

@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { setTimeout as pause } from 'node:timers/promises';
@@ -191,31 +191,19 @@ function envelope(owner, row) {
   };
 }
 async function cancelIntent(o) {
-  await db('commerce', 'BEGIN');
-  try {
-    await db('commerce', 'SELECT id FROM orders WHERE id=$1 FOR UPDATE', [o.id]);
-    await db(
-      'commerce',
-      "UPDATE orders SET cancellation_requested=true,status='CANCELLATION_PENDING' WHERE id=$1",
-      [o.id],
-    );
-    const command = (
-      await db(
-        'commerce',
-        "SELECT payload FROM outbox WHERE aggregate_id=$1 AND kind='PaymentRequested'",
-        [o.id],
-      )
-    )[0].payload;
-    await db(
-      'commerce',
-      "INSERT INTO outbox(id,kind,aggregate_id,generation,payload) VALUES($1,'PaymentCancellationRequested',$2,$3,$4::jsonb)",
-      [randomUUID(), o.id, command.revision, JSON.stringify(command)],
-    );
-    await db('commerce', 'COMMIT');
-  } catch (e) {
-    await db('commerce', 'ROLLBACK');
-    throw e;
-  }
+  const current = await api(`/orders/${o.id}`);
+  assert.equal(current.status, 200);
+  const result = await api(
+    `/orders/${o.id}/cancel`,
+    a,
+    'POST',
+    {
+      expectedVersion: current.body.workflowVersion,
+      reason: 'Payment recovery cancellation fixture',
+    },
+    randomUUID(),
+  );
+  assert.equal(result.status, 201, JSON.stringify(result.body));
 }
 const phase = process.argv[2] ?? 'main';
 try {
@@ -320,6 +308,12 @@ try {
       404,
     );
     const replies = await Promise.all(Array.from({ length: 20 }, () => pay(o)));
+    assert.ok(
+      replies.every((r) => [201, 503].includes(r.status)),
+      JSON.stringify(replies),
+    );
+    for (let i = 0; i < replies.length; i++)
+      if (replies[i].status === 503) replies[i] = await pay(o);
     assert.ok(
       replies.every((r) => r.status === 201),
       JSON.stringify(replies.filter((r) => r.status !== 201)),

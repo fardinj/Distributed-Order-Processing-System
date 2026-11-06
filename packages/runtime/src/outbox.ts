@@ -191,7 +191,7 @@ export class OutboxWorker {
     });
     channel.ack(message); // SQL owns recovery only after the durable inbox commit.
   }
-  private async publishOne() {
+  private async publishOne(priority = true) {
     const token = randomUUID();
     const rows = await this.store.query<{
       id: string;
@@ -203,7 +203,7 @@ export class OutboxWorker {
     }>(
       `UPDATE outbox SET claim_token=$1,lease_until=clock_timestamp()+interval '15 seconds',attempts=attempts+1
       WHERE id=(SELECT id FROM outbox WHERE published_at IS NULL AND available_at<=clock_timestamp()
-      AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
+      AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY ${priority ? "CASE WHEN kind IN ('PaymentStatusChanged','RefundStatusChanged','RefundRequested','PaymentCancellationRequested') THEN 0 ELSE 1 END," : ''} available_at,id FOR UPDATE SKIP LOCKED LIMIT 1)
       RETURNING id,kind,aggregate_id,generation,payload,attempts`,
       [token],
     );
@@ -270,11 +270,11 @@ export class OutboxWorker {
     }
     return true;
   }
-  private async consumeOne() {
+  private async consumeOne(priority = true) {
     await this.store.transaction(async (sql) => {
       const rows = await sql.query<{ message_id: string; envelope: Envelope; attempts: number }>(
         `SELECT message_id,envelope,attempts FROM inbox_messages
-        WHERE consumer=$1 AND status='PENDING' AND available_at<=clock_timestamp() ORDER BY available_at,message_id
+        WHERE consumer=$1 AND status='PENDING' AND available_at<=clock_timestamp() ORDER BY ${priority ? "CASE WHEN envelope->>'kind' IN ('PaymentStatusChanged','RefundStatusChanged','RefundRequested','PaymentCancellationRequested') THEN 0 ELSE 1 END," : ''} available_at,message_id
         FOR UPDATE SKIP LOCKED LIMIT 1`,
         [`${this.owner}-events`],
       );
@@ -317,7 +317,7 @@ export class OutboxWorker {
     if (this.stopped) return;
     // Accepted inbox work progresses even during broker outages.
     try {
-      for (let i = 0; i < 4 && !this.stopped; i++) await this.consumeOne();
+      for (let i = 0; i < 4 && !this.stopped; i++) await this.consumeOne(i < 3);
     } catch {
       logRecord(this.owner, 'warn', 'inbox_database_unavailable');
     }
@@ -326,7 +326,7 @@ export class OutboxWorker {
       await this.ensureConnection();
       this.connectionFailures = 0;
       for (let i = 0; i < 4 && !this.stopped && this.publisher; i++)
-        if (!(await this.publishOne())) break;
+        if (!(await this.publishOne(i < 3))) break;
     } catch {
       this.nextConnectionAt = Date.now() + retryDelay(this.connectionFailures++);
       await this.disconnect();

@@ -373,11 +373,19 @@ export class CatalogService {
       shortage: row.shortage.toString(),
     }));
   }
-  reviews() {
-    return this.db.reviewCase.findMany({
-      where: { status: 'OPEN' },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
-    });
+  async reviews(limit: number, cursor?: string) {
+    if (
+      cursor &&
+      !(await this.db.store.query('SELECT id FROM review_cases WHERE id=$1', [cursor])).length
+    )
+      throw new NotFoundException('Review cursor not found');
+    const rows = await this.db.store.query(
+      `SELECT id,resource_id AS "resourceId",reason,status,metadata,created_at AS "createdAt" FROM review_cases WHERE status='OPEN' AND ($1::uuid IS NULL OR (created_at,id)>(SELECT created_at,id FROM review_cases WHERE id=$1)) ORDER BY created_at,id LIMIT $2`,
+      [cursor ?? null, limit + 1],
+    );
+    return {
+      items: rows.slice(0, limit),
+      nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
+    };
   }
 }

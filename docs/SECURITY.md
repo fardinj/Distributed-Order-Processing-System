@@ -36,6 +36,8 @@ Security checks and identity verification remain enforced during Redis outages. 
 
 ## Evidence and performance
 
+Step 6 implements the selected Redis outage behavior and public action guards. See [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md) for exact quotas, bounded fallback/overflow keys, cache staleness, owner-token locking and action ownership/version/idempotency contracts. `X-Rate-Limit-Mode` advertises shared/local-degraded enforcement. Auth stays mandatory. The storage monitor uses an unprivileged UID, read-only filesystem metadata access and Commerce-only credentials; it cannot read PostgreSQL-owned data files.
+
 Test expired/forged/wrong-audience tokens, identity spoofing, customer cross-access, admin escalation, direct internal-service access, forged broker/result messages, SQL injection inputs, oversized work, rate-limit exhaustion and Redis failure. Test admin corrections racing with reservations. Include secret/log redaction and permission-aware refund/history responses.
 
 Benchmark with auth, ownership checks, audit and bounds enabled on the selected 8 GB/4-core host. Use indexed owner filters, cached public verification keys where appropriate, reusable connections and bounded worker/login concurrency. CAPACITY_AND_SCALING.md defines initial budgets/admission; measured throughput is not yet known. Dependency/secret scans and backup/restore evidence belong in delivery, with actual results distinguished from plans.

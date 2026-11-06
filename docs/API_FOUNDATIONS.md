@@ -68,10 +68,10 @@ Stock counts/deltas use safe integer JSON numbers, independently of arbitrary-pr
 
 Reconciliation serializes on inventory. When count is below ACTIVE/PAYMENT_PENDING/ALLOCATED holds, set sellable stock to zero, preserve holds, record affected reservation identities/generations, and create a discrepancy/review case. No automatic choice of losing customer or guessed refund. Open discrepancies block relisting until an explicit later resolution workflow. Physical checkout/fulfillment workers must take the same inventory lock before hold changes. Paid order/item snapshots and prior checkout revisions are DB-protected; product edits affect new snapshots only.
 
-Audit and required local event outbox records commit with each successful mutation. Runtime audit/adjustment/history records are append-only by SQL permissions. The outbox publisher/consumer recovery loop is the next milestone; rows currently remain pending.
+Audit and required local event outbox records commit with each successful mutation. Runtime audit/adjustment/history records are append-only by SQL permissions. The owner-local outbox/inbox loop now delivers these notifications with SQL receipts; see [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md).
 
 ## Responses and boundaries
 
 POST mutations return 201; reads/PATCH return 200. Typical failures: 400 invalid request/money/cursor, 401 missing/invalid token, 403 wrong permission, 404 unavailable/nonowned resource, 409 stale version/idempotency/constraint conflict, 413 body limit, 503 database/identity temporarily unavailable. Retry a 503 mutation with the same key. Error responses do not include SQL, tokens or credential values.
 
-There is no create-order, payment execution, refund execution, retry worker or review-resolution API yet. Identity admin/master/management routes remain blocked at the gateway. Real-browser callback/MFA UX and a production TLS deployment require their later verification; the current stack is loopback development HTTP.
+Create/order-list/checkout APIs are implemented in step 3; see [checkout contracts](CHECKOUT_AND_OUTBOX.md). Payment/refund execution, fulfillment retry and review-resolution APIs are later. Identity admin/master/management routes remain blocked at the gateway. Real-browser callback/MFA UX and a production TLS deployment require their later verification; the current stack is loopback development HTTP.

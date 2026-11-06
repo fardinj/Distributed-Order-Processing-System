@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: service boundaries, owner-local migrations, outbox/receipt tables and protected APIs are implemented. Business command consumers, publication and projections begin in step 3. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md); [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) defines the target workflow.
+Status: private service ownership, schemas, protected APIs and owner-local checkout preparation delivery are implemented. Outbox/inbox includes confirms, leases, receipts, retries and quarantine; see [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). Financial commands/results expand with step 4/5.
 
 ## Two different gateways
 

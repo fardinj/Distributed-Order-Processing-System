@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: all Q01-Q21 business choices are selected. Steps 1 and 2 are implemented and verified as of 2026-11-06; see [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md) and [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md). Step 3 is next. The original 5-7-day estimate predates expanded scope and is not a delivery commitment.
+Status: Q01-Q21 choices are selected. Steps 1-3 are implemented as of 2026-11-06; see [step-1 evidence](SKELETON_VERIFICATION.md), [step-2 evidence](FOUNDATIONS_VERIFICATION.md) and [step-3 evidence](CHECKOUT_VERIFICATION.md). Step 4 is next. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -27,6 +27,8 @@ Completed: four forward migrations per owner, exact money guards, real OIDC cust
 Exit: very large whole-rial values round-trip without loss; customers cannot impersonate one another or invoke admin writes; admin corrections preserve holds/accounting evidence.
 
 ## 3. Admission, checkout, idempotency and outbox
+
+Completed: SQL capacity/slots, atomic canonical create/replay, five-minute holds and bounded expiry, versioned basket reacquisition/confirmation, protected coherent reads, source-version preparation/financial projection fields, and bounded per-owner outbox/inbox delivery. Financial result handlers arrive with their owning workflows; checkout preparation never charges. See CHECKOUT_VERIFICATION.md.
 
 - Implement canonical quantities/customer-scoped create identity with current-status replay. Replays do not reacquire stock or consume another admission slot.
 - Implement SQL-backed admission budget and atomic create/slot/order/items/revision/hold/history/preparation-outbox. Reject new overload explicitly before acceptance.

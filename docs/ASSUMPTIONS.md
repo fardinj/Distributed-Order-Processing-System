@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01-Q21 business choices are selected. Steps 1 and 2 are implemented as of 2026-11-06: isolated services, owner migrations, exact IRR, OIDC API authorization and audited catalog/inventory foundations. Checkout, workers and UI remain later milestones. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md) for executed evidence.
+Status: Q01-Q21 choices are selected. Steps 1-3 are implemented as of 2026-11-06; checkout/admission/outbox defaults and evidence are recorded in [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). Later refinements supersede earlier conflicting suggestions. Payment execution and UI remain planned.
 
 ## Assignment requirements
 

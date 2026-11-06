@@ -346,7 +346,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
-  foundation-checks:
+  foundation-checks: &foundation-checks
     profiles: [tools]
     build:
       context: .
@@ -371,6 +371,25 @@ services:
       ]
     networks: [private]
     mem_limit: 1024m
+
+  checkout-checks:
+    <<: *foundation-checks
+    entrypoint: [node, scripts/checkout-smoke.mjs]
+    volumes: ['./.local/verification:/verification']
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        commerce_rabbitmq_password,
+        billing_rabbitmq_password,
+      ]
 
 networks:
   edge:

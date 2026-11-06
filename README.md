@@ -1,6 +1,6 @@
 # TOPS — distributed order processing
 
-Docker-first NestJS/TypeScript workspace. Steps 1–2 provide service infrastructure, owner-local schemas, exact IRR, OIDC-protected catalog/admin APIs and owner-protected order reads. Checkout/payment/refund workers, outbox delivery and the Persian UI are subsequent milestones.
+Docker-first NestJS/TypeScript workspace. Steps 1-3 provide isolated services, owner schemas, exact IRR, OIDC catalog/admin APIs, checkout reservations/admission and durable preparation delivery. Payment/refund execution and the Persian UI are later milestones.
 
 ## Start or upgrade
 
@@ -15,6 +15,7 @@ docker compose --profile bootstrap run --rm --build seed
 docker compose up --build --wait --wait-timeout 360
 docker compose --profile tools run --rm --build tools
 docker compose --profile tools run --rm --build foundation-checks
+docker compose --profile tools run --rm --build checkout-checks
 ```
 
 Setup creates `.env`, random passwords and hashed broker definitions in gitignored `.local/`. It preserves existing credentials; rerun when new secret names are introduced. Start infrastructure and apply migrations before domain apps: readiness now checks that each owner's schema exists.
@@ -30,9 +31,9 @@ apps/
   gateway/src/           # JWT verification and allowlisted client proxies
   commerce/
     src/modules/catalog # Products, audited/versioned inventory administration
-    src/modules/orders  # Owner-protected snapshot reads
+    src/modules/orders  # Admission, checkout revisions, expiry and protected reads
     prisma/             # Owned schema and versioned custom SQL migrations
-  billing/prisma/       # Payment/refund ledger foundation and guards
+  billing/              # Private financial schema and reliable checkout preparation
   bank-simulator/prisma/# Independently committed provider-ledger foundation
 packages/runtime/src/   # Bootstrap, health, JWT/service identity, exact IRR helpers
 infrastructure/
@@ -85,7 +86,7 @@ PostgreSQL has separate Commerce, Billing, Bank and Identity databases. Runtime 
 
 Money is whole IRR: canonical strings externally, exact BigInt arithmetic, unconstrained NUMERIC with finite/integer checks. No business monetary ceiling or Number conversion. Custom checks/triggers/partial indexes live in forward SQL migrations. Never edit applied SQL or use `db push`/reset to bypass migration history. Migration commands receive explicit owner config and verify completed history.
 
-RabbitMQ accounts/exchanges/queue permissions are scoped by owner. Transport smoke proves confirms/routing/ack, not exactly-once business effects. Outbox tables/admin events now persist; publication/consumer recovery is step 3. Redis loss degrades readiness without bypassing auth/SQL rules; actual cache/overlap-lock/rate-limit features arrive in their roadmap step.
+RabbitMQ accounts/exchanges/queue permissions are scoped by owner. Owner-local outbox/inbox loops now deliver versioned checkout preparation using confirms, mandatory routing, SQL leases/receipts, retry backoff and quarantine. Delivery is at least once; domain effects are guarded by SQL identity/version checks. Redis loss degrades readiness without bypassing auth/SQL rules; actual cache/overlap-lock/rate-limit features arrive in their roadmap step.
 
 ## Checks
 
@@ -96,6 +97,7 @@ docker compose --profile tools run --rm --build tools npm run validate:schemas
 docker compose --profile tools run --rm --build tools npm run format:check
 docker compose --profile tools run --rm --build tools
 docker compose --profile tools run --rm --build foundation-checks
+docker compose --profile tools run --rm --build checkout-checks
 ```
 
 Foundation checks use real OIDC principals, huge money, concurrent admin/refund changes and SQL guards. They create/deactivate their own test products and roll back/remove only known test-ledger fixtures, retaining audit/discrepancy evidence. No other data is cleared. Seeds preserve later admin edits; user passwords are set on first creation rather than silently reset on reruns.
@@ -114,4 +116,4 @@ This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16
 
 Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
 
-Next is [roadmap step 3](docs/ROADMAP.md): safe order admission/checkout, durable outbox publication and idempotent business consumers. Review [foundation API](docs/API_FOUNDATIONS.md), [design](docs/SYSTEM_DESIGN.md), [security](docs/SECURITY.md) and [capacity](docs/CAPACITY_AND_SCALING.md). Executed evidence is separated into [step 1](docs/SKELETON_VERIFICATION.md) and [step 2](docs/FOUNDATIONS_VERIFICATION.md).
+Next is [roadmap step 4](docs/ROADMAP.md): payment-owned stock, bank operations and unknown-outcome recovery. Review [checkout/outbox contracts](docs/CHECKOUT_AND_OUTBOX.md), [foundation APIs](docs/API_FOUNDATIONS.md), [design](docs/SYSTEM_DESIGN.md) and [capacity](docs/CAPACITY_AND_SCALING.md). Executed evidence: [step 1](docs/SKELETON_VERIFICATION.md), [step 2](docs/FOUNDATIONS_VERIFICATION.md), [step 3](docs/CHECKOUT_VERIFICATION.md).

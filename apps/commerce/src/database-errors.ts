@@ -1,11 +1,24 @@
-import { ArgumentsHost, Catch, type ExceptionFilter } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ServiceUnavailableException,
+  type ExceptionFilter,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { Prisma } from './generated/prisma/client.js';
 
-@Catch(Prisma.PrismaClientKnownRequestError)
+@Catch(Prisma.PrismaClientKnownRequestError, ServiceUnavailableException)
 export class DatabaseErrors implements ExceptionFilter {
-  catch(error: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
+  catch(
+    error: Prisma.PrismaClientKnownRequestError | ServiceUnavailableException,
+    host: ArgumentsHost,
+  ) {
     const response = host.switchToHttp().getResponse<Response>();
+    if (error instanceof ServiceUnavailableException) {
+      response.setHeader('retry-after', '2');
+      response.status(503).json(error.getResponse());
+      return;
+    }
     const sqlCode = String(error.meta?.code ?? '');
     let status = 500;
     let message = 'Database operation failed';
@@ -19,7 +32,7 @@ export class DatabaseErrors implements ExceptionFilter {
     }
     if (
       ['P2028', 'P2024', 'P1001', 'P1002', 'P1017'].includes(error.code) ||
-      ['40P01', '40001', '57014'].includes(sqlCode)
+      ['40P01', '40001', '57014', '55P03'].includes(sqlCode)
     ) {
       status = 503;
       message = 'Database temporarily busy; retry with the same idempotency key';

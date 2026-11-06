@@ -53,6 +53,8 @@ Limits concern work size, not a maximum money value. An oversized HTTP payload c
 
 Proposed initial pending-order budget: 200 non-settled admitted orders, then adjust using measured size, queue age and drain rate. Shared counters protect concurrent admission; local CPU/lag/RSS readings supplement them. Never claim a Redis-independent global admission cap based only on each gateway's memory.
 
+Step 3 implements this SQL budget and slot ledger. Expired unpaid checkout releases its settled slot; explicit refresh requires capacity again. New admission also checks a 10,000-row pending outbox/inbox threshold; each owner bounds pending inbox staging at 10,000, and broker queues reject publication at 1,000 messages/16 MiB. Local create concurrency/RSS/lag safeguards and reconciliation commands are documented in [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md). Host CPU/disk watermarks and financial priority lanes remain later work; current limits are not measured RPS.
+
 ## Priority and backpressure
 
 Give processing capacity first to authoritative payment results, reconciliation, refunds, cancellation, stock-state transitions and recovery of accepted workflows. Fairly share remaining execution slots among accepted fulfillment work. Restrict new orders, broad list queries and expensive administrative scans first. Use separate command classes/queues and reserved execution slots rather than relying on arrival order in one long queue.

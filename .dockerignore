@@ -1,0 +1,10 @@
+.git
+.codegraph
+.local
+.env
+.env.*
+node_modules
+dist
+coverage
+*.log
+*.pdf

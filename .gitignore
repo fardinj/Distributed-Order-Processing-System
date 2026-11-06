@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.local/
+.codegraph/
+.cache/
+**/src/generated/
+coverage/
+*.log
+core
+core.*
+.DS_Store

@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, '..');
 const local = resolve(root, '.local');
 await mkdir(resolve(local, 'secrets'), { recursive: true, mode: 0o700 });
 await mkdir(resolve(local, 'rabbitmq'), { recursive: true, mode: 0o700 });
+await mkdir(resolve(local, 'identity'), { recursive: true, mode: 0o700 });
 
 const names = [
   'postgres_admin',
@@ -21,6 +22,14 @@ const names = [
   'commerce_rabbitmq',
   'billing_rabbitmq',
   'redis',
+  'commerce_service',
+  'billing_service',
+  'fixture_customer_a',
+  'fixture_customer_b',
+  'fixture_admin',
+  'user_customer_a',
+  'user_customer_b',
+  'user_admin',
 ];
 for (const name of names) {
   try {

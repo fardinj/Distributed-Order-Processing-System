@@ -5,9 +5,13 @@ import { serviceConfig } from '../../../packages/runtime/src/config.js';
 import { logRecord } from '../../../packages/runtime/src/logger.js';
 import { BillingDatabase } from './database.js';
 import { BillingWorker } from './worker.js';
+import { Payments } from './payments.js';
 
 const config = serviceConfig('billing');
-@Module({ imports: [RuntimeModule.forRoot(config)], providers: [BillingDatabase, BillingWorker] })
+@Module({
+  imports: [RuntimeModule.forRoot(config)],
+  providers: [BillingDatabase, BillingWorker, Payments],
+})
 class BillingModule {}
 
 bootstrap(BillingModule, config).catch(() => {

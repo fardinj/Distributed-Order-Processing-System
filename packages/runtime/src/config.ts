@@ -15,6 +15,7 @@ export interface ServiceConfig {
   rabbit?: { url: string };
   redis?: { url: string; password: string };
   upstreams: Record<string, string>;
+  requiredTable?: string;
 }
 
 export function secret(name: string): string {
@@ -36,6 +37,11 @@ function positiveInteger(name: string, fallback: number): number {
 export function serviceConfig(name: ServiceName): ServiceConfig {
   const config: ServiceConfig = { name, port: positiveInteger('PORT', 3000), upstreams: {} };
   if (name !== 'gateway') {
+    config.requiredTable = {
+      commerce: 'public.products',
+      billing: 'public.payments',
+      'bank-simulator': 'public.bank_operations',
+    }[name];
     config.database = {
       host: process.env.DB_HOST ?? 'postgres',
       port: positiveInteger('DB_PORT', 5432),

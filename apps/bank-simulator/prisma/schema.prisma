@@ -1,7 +1,39 @@
-// The provider ledger will be implemented in the payment milestone.
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+}
+
+model BankOperation {
+  operationKey String       @id @map("operation_key") @db.VarChar(150)
+  amountMinor  Decimal      @map("amount_minor") @db.Decimal
+  currency     String       @default("IRR") @db.VarChar(3)
+  status       String       @default("PENDING") @db.VarChar(30)
+  reference    String?      @db.VarChar(200)
+  initiatedAt  DateTime     @default(now()) @map("initiated_at") @db.Timestamptz(6)
+  deadlineAt   DateTime     @map("deadline_at") @db.Timestamptz(6)
+  refunds      BankRefund[]
+
+  @@index([status, deadlineAt])
+  @@map("bank_operations")
+}
+
+model BankRefund {
+  operationKey String        @id @map("operation_key") @db.VarChar(150)
+  chargeKey    String        @map("charge_key") @db.VarChar(150)
+  amountMinor  Decimal       @map("amount_minor") @db.Decimal
+  status       String        @default("PENDING") @db.VarChar(30)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  charge       BankOperation @relation(fields: [chargeKey], references: [operationKey], onDelete: Restrict)
+
+  @@map("bank_refunds")
+}
+
+model SimulationRule {
+  reference   String @id @db.VarChar(80)
+  outcome     String @db.VarChar(40)
+  description String @db.VarChar(500)
+
+  @@map("simulation_rules")
 }
 
 datasource db {

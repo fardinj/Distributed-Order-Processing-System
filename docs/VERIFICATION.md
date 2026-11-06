@@ -1,6 +1,6 @@
 # Verification plan
 
-Status: business scenarios below are planned, not results. Step-1 unit/integration/isolation/outage results are separately recorded in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md). Expectations reflect selected Q01–Q21. Use real PostgreSQL/RabbitMQ/private service databases for future transaction/crash/coordination tests; mocks alone cannot prove locks or message acknowledgments.
+Status: scenarios below are the target verification plan, not blanket passing results. Executed step-1 evidence is in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md), and step-2 schema/auth/admin/concurrency evidence is in [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md). Use real owner databases and RabbitMQ for transaction/crash/coordination tests; mocks alone cannot prove locks or acknowledgments.
 
 ## Core invariant scenarios
 

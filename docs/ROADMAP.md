@@ -1,12 +1,12 @@
 # Roadmap and implementation steps
 
-Status: all Q01–Q21 business choices are selected. Step 1's service skeleton is implemented, with boot/isolation/transport/resource evidence in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md), dated 2026-11-06. Later business milestones remain planned. The original 5–7-day estimate predates expanded scope; re-estimate from actual implementation work rather than treating it as a commitment.
+Status: all Q01-Q21 business choices are selected. Steps 1 and 2 are implemented and verified as of 2026-11-06; see [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md) and [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md). Step 3 is next. The original 5-7-day estimate predates expanded scope and is not a delivery commitment.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
 ## 1. Repository, services and resource smoke test
 
-Completed: Compose/private network, four NestJS apps + managed Identity, private DB runtime/migrator roles, scoped broker accounts, generated secrets, health/logging/shutdown plumbing and initial resource checks. Exact domain schemas/authenticated business APIs/UI remain later steps. Root README documents the structure and commands.
+Completed: Compose/private network, four NestJS apps + managed Identity, private DB runtime/migrator roles, scoped broker accounts, generated secrets, health/logging/shutdown plumbing and initial resource checks. Domain schemas and authenticated catalog/admin APIs are completed in step 2; UI and workflows remain later steps. Root README documents the structure and commands.
 
 - Initialize compatible pinned Node/TypeScript/NestJS/Prisma versions in one repo with Gateway, Commerce, Billing and Bank entry points; add maintained OIDC provider (proposed Keycloak).
 - Compose private network, one PostgreSQL instance/private service databases/roles, Redis and RabbitMQ. Expose only gateway/controlled Identity routes; loopback-bind development management endpoints.
@@ -16,6 +16,8 @@ Completed: Compose/private network, four NestJS apps + managed Identity, private
 Exit: clean checkout can run all services; isolated runtime roles cannot write another owner's database. Resource budgets are observed, not just listed.
 
 ## 2. Schema, exact IRR and identity/admin foundations
+
+Completed: four forward migrations per owner, exact money guards, real OIDC customer/admin/service identity, protected reads, versioned/idempotent catalog and inventory APIs, fixtures and concurrency checks. Browser callback/UI remains step 7; business outbox publication begins in step 3.
 
 - Implement owner-local migrations, constraints, indexes, receipts/outbox and state versions. Use explicit NUMERIC financial migrations and exact string/BigInt adapters; verify no ORM default precision ceiling.
 - Add deterministic fixtures for products/types, stock, users/roles and simulator outcomes. Test seeds do not replace auth/admin APIs.

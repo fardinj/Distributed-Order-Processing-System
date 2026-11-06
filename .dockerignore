@@ -5,6 +5,7 @@
 .env.*
 node_modules
 dist
+**/src/generated/
 coverage
 *.log
 *.pdf

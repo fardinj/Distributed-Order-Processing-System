@@ -1,7 +1,111 @@
-// This schema belongs only to Billing. No cross-service models or foreign keys.
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+}
+
+model Payment {
+  id              String           @id @db.Uuid
+  orderId         String           @unique @map("order_id") @db.Uuid
+  operationKey    String           @unique @map("operation_key") @db.VarChar(150)
+  customerId      String           @map("customer_id") @db.VarChar(128)
+  amountMinor     Decimal          @map("amount_minor") @db.Decimal
+  currency        String           @default("IRR") @db.VarChar(3)
+  status          String           @default("PENDING") @db.VarChar(30)
+  version         Int              @default(1)
+  nextReconcileAt DateTime?        @map("next_reconcile_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  refunds         Refund[]
+  attempts        PaymentAttempt[]
+
+  @@map("payments")
+}
+
+model PaymentAttempt {
+  id        String   @id @db.Uuid
+  paymentId String   @map("payment_id") @db.Uuid
+  kind      String   @db.VarChar(30)
+  result    String   @db.VarChar(40)
+  metadata  Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_attempts")
+}
+
+model Refund {
+  id              String       @id @db.Uuid
+  paymentId       String       @map("payment_id") @db.Uuid
+  dispositionId   String       @unique @map("disposition_id") @db.Uuid
+  operationKey    String       @unique @map("operation_key") @db.VarChar(150)
+  amountMinor     Decimal      @map("amount_minor") @db.Decimal
+  currency        String       @default("IRR") @db.VarChar(3)
+  status          String       @default("PENDING") @db.VarChar(30)
+  reason          String       @db.VarChar(1000)
+  version         Int          @default(1)
+  nextReconcileAt DateTime?    @map("next_reconcile_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  payment         Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  items           RefundItem[]
+  logs            RefundLog[]
+
+  @@map("refunds")
+}
+
+model RefundItem {
+  refundId    String  @map("refund_id") @db.Uuid
+  itemId      String  @map("item_id") @db.Uuid
+  amountMinor Decimal @map("amount_minor") @db.Decimal
+  refund      Refund  @relation(fields: [refundId], references: [id], onDelete: Restrict)
+
+  @@id([refundId, itemId])
+  @@map("refund_items")
+}
+
+model RefundLog {
+  id        String   @id @db.Uuid
+  refundId  String   @map("refund_id") @db.Uuid
+  type      String   @db.VarChar(80)
+  metadata  Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  refund    Refund   @relation(fields: [refundId], references: [id], onDelete: Restrict)
+
+  @@index([refundId, createdAt, id])
+  @@map("refund_logs")
+}
+
+model PaymentCancellation {
+  operationKey String   @id @map("operation_key") @db.VarChar(150)
+  status       String   @db.VarChar(30)
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("payment_cancellations")
+}
+
+model Outbox {
+  id          String    @id @db.Uuid
+  kind        String    @db.VarChar(100)
+  aggregateId String    @map("aggregate_id") @db.Uuid
+  generation  Int
+  payload     Json
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  claimToken  String?   @map("claim_token") @db.Uuid
+  leaseUntil  DateTime? @map("lease_until") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  attempts    Int       @default(0)
+
+  @@unique([kind, aggregateId, generation])
+  @@map("outbox")
+}
+
+model ConsumerReceipt {
+  consumer  String   @db.VarChar(100)
+  messageId String   @map("message_id") @db.Uuid
+  handledAt DateTime @default(now()) @map("handled_at") @db.Timestamptz(6)
+
+  @@id([consumer, messageId])
+  @@map("consumer_receipts")
 }
 
 datasource db {

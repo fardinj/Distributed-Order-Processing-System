@@ -1,6 +1,6 @@
 # Security requirements and proposed controls
 
-Status: Q18 selects maintained OIDC identity/API security and a simple Persian UI; Q20 selects an 8 GB/4-core host with backpressure; Q21 selects audited admin adjustments. This is a planned baseline, not a completed audit. Package versions, session lifetimes and measured limits remain engineering defaults. API security is authoritative; no separate client-side security feature program is added.
+Status: Q18 selects maintained OIDC identity/API security and a simple Persian UI; Q20 selects an 8 GB/4-core host with backpressure; Q21 selects audited admin adjustments. This combines implemented API foundations with later workflow controls, not a completed security audit. Executed evidence is in FOUNDATIONS_VERIFICATION.md. Package versions, session lifetimes and measured limits remain engineering defaults. API security is authoritative; no separate client-side security feature program is added.
 
 ## Access and ownership
 
@@ -12,11 +12,11 @@ No public endpoint assigns admin privileges. Bootstrap privileged access through
 
 ## Identity and session choices
 
-Use a maintained OIDC provider (proposed Keycloak) rather than building credentials/cryptography in Commerce. Provider-managed passwords use supported secure hashing; benchmark login within its allocated resource budget. For custom password handling, follow maintained-library/OWASP guidance rather than a fast general-purpose hash ([password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)).
+Use the maintained Keycloak OIDC provider rather than building credentials/cryptography in Commerce. Provider-managed passwords use supported secure hashing; benchmark login within its allocated resource budget. For custom password handling, follow maintained-library/OWASP guidance rather than a fast general-purpose hash ([password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)).
 
 Configure short-lived access, refresh rotation/reuse handling, logout/revocation and admin step-up/MFA using the provider. Record exact lifetimes as implementation defaults. Redis is not the only store needed to verify identity/revoke privileged access; document disabled-account/permission-change propagation. Provider service identities or equivalent scoped credentials authenticate internal calls and broker producers.
 
-Keep the Persian UI simple and integrate maintained OIDC browser login. Suggested implementation: gateway-managed secure session with server-side provider tokens, avoiding secrets in the static client. Cookie use includes CSRF protection and suitable Secure/HttpOnly/SameSite attributes; CORS is not authorization. TLS, signing/service credentials and token claims are enforced at APIs/identity boundaries ([OWASP REST guidance](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html)). Session records use durable storage, not Redis-only storage required for correctness during outage.
+Current APIs use signed bearer access tokens with a five-minute lifetime, cached provider JWKS and domain ownership/role checks. Sessions and refresh rotation belong to Keycloak; revocation is bounded by access-token expiry, not immediate. The public browser client requires authorization code with S256 PKCE; callback/UI implementation is step 7. No gateway session store or cookie BFF is implemented or required by this baseline. Any later cookie flow must include CSRF protection and appropriate Secure/HttpOnly/SameSite attributes. TLS remains required for external deployment. See [API_FOUNDATIONS.md](API_FOUNDATIONS.md) for implemented contracts.
 
 ## Inputs and business actions
 

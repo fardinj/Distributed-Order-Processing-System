@@ -7,13 +7,19 @@ import { CONFIG, Dependencies } from './dependencies.js';
 import { HealthController } from './health.js';
 import { JsonLogger, logRecord } from './logger.js';
 import type { ServiceConfig } from './config.js';
+import { SecurityModule } from './security.js';
+import { InternalIdentityController } from './internal.controller.js';
 
 @Module({})
 export class RuntimeModule {
   static forRoot(config: ServiceConfig): DynamicModule {
     return {
       module: RuntimeModule,
-      controllers: [HealthController],
+      imports: [SecurityModule],
+      controllers: [
+        HealthController,
+        ...(config.name === 'gateway' ? [] : [InternalIdentityController]),
+      ],
       providers: [{ provide: CONFIG, useValue: config }, Dependencies],
     };
   }
@@ -43,6 +49,7 @@ export async function bootstrap(
       next: import('express').NextFunction,
     ) => {
       const requestId = correlationId(req.headers['x-request-id']);
+      req.headers['x-request-id'] = requestId;
       res.setHeader('x-request-id', requestId);
       const start = performance.now();
       res.on('finish', () => {
@@ -59,6 +66,7 @@ export async function bootstrap(
     },
   );
   configure?.(app);
+  app.useBodyParser('json', { limit: '64kb', strict: true });
   await app.listen(config.port, '0.0.0.0');
   logRecord(config.name, 'info', 'service_listening', { port: config.port });
   return app;

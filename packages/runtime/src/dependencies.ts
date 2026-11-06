@@ -33,6 +33,7 @@ export class Dependencies implements OnModuleDestroy {
     if (config.database) {
       this.pool = new Pool({
         ...config.database,
+        max: 1,
         connectionTimeoutMillis: 1500,
         idleTimeoutMillis: 10000,
         query_timeout: 1500,
@@ -109,7 +110,20 @@ export class Dependencies implements OnModuleDestroy {
       }
     };
     await Promise.all([
-      ...(this.pool ? [probe('postgres', true, () => this.pool!.query('SELECT 1'))] : []),
+      ...(this.pool
+        ? [
+            probe('postgres', true, async () => {
+              await this.pool!.query('SELECT 1');
+              if (this.config.requiredTable) {
+                const result = await this.pool!.query(
+                  'SELECT to_regclass($1) IS NOT NULL AS ready',
+                  [this.config.requiredTable],
+                );
+                if (!result.rows[0]?.ready) throw new Error('Owner schema is not migrated');
+              }
+            }),
+          ]
+        : []),
       ...(this.config.rabbit ? [probe('rabbitmq', true, () => this.rabbitCheck())] : []),
       ...(this.redis ? [probe('redis', false, () => this.redisCheck())] : []),
       ...Object.entries(this.config.upstreams).map(([name, url]) =>

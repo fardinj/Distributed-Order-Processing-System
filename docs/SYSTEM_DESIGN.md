@@ -1,6 +1,6 @@
 # Backend system design
 
-Status: this document defines the selected target design. Steps 1-2 now provide isolated services, owner schemas, identity and admin APIs; checkout/payment/fulfillment workflows remain planned. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md), [ASSUMPTIONS.md](ASSUMPTIONS.md) and [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
+Status: this is the selected target design. Steps 1-3 implement private services, schemas, identity/admin APIs, admission/checkout and reliable preparation. Payment/fulfillment/refund workflows remain later milestones. See [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) for implemented contracts and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md) for evidence.
 
 ## Services and ownership
 

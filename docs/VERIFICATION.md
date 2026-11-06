@@ -4,6 +4,8 @@ Status: scenarios below are the target verification plan, not blanket passing re
 
 ## Core invariant scenarios
 
+Step-3 executed admission, checkout, expiry and cross-owner preparation evidence is recorded in [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). The financial/fulfillment/cancellation cases below remain target scenarios until their milestones execute them.
+
 | Scenario | Required evidence |
 |---|---|
 | Concurrent create replay | 50 same customer/key/payload requests yield one order/current status, one admission slot and one hold generation; no timer renewal |

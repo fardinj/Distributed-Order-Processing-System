@@ -1,0 +1,9 @@
+// The provider ledger will be implemented in the payment milestone.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

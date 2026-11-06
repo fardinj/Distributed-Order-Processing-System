@@ -1,0 +1,9 @@
+// This schema belongs only to Billing. No cross-service models or foreign keys.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

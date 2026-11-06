@@ -1,0 +1,9 @@
+{
+  "name": "@tops/bank-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node ../../dist/apps/bank-simulator/src/main.js"
+  }
+}

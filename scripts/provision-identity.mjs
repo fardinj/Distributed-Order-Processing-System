@@ -32,7 +32,15 @@ async function api(path, method = 'GET', body, allowed = []) {
     : response.json();
 }
 for (const name of ['customer', 'admin', 'service']) await api('/roles', 'POST', { name }, [409]);
+const realm = await api('');
+await api('', 'PUT', {
+  ...realm,
+  internationalizationEnabled: true,
+  supportedLocales: [...new Set([...(realm.supportedLocales ?? []), 'fa', 'en'])],
+  defaultLocale: 'fa',
+});
 const role = async (name) => api(`/roles/${name}`);
+const clientScopes = await api('/client-scopes');
 const audience = {
   name: 'tops-api-audience',
   protocol: 'openid-connect',
@@ -54,7 +62,7 @@ async function client(clientId, extra) {
     implicitFlowEnabled: false,
     directAccessGrantsEnabled: false,
     fullScopeAllowed: true,
-    defaultClientScopes: ['roles'],
+    defaultClientScopes: ['basic', 'roles'],
     protocolMappers: [audience],
     ...extra,
   };
@@ -62,6 +70,12 @@ async function client(clientId, extra) {
   if (list.length) await api(`/clients/${list[0].id}`, 'PUT', { ...body, id: list[0].id });
   else await api('/clients', 'POST', body);
   list = await api(`/clients?clientId=${encodeURIComponent(clientId)}`);
+  // Updating the client representation does not update existing scope associations.
+  for (const name of body.defaultClientScopes) {
+    const scope = clientScopes.find((entry) => entry.name === name);
+    if (!scope) throw new Error(`Required built-in client scope missing: ${name}`);
+    await api(`/clients/${list[0].id}/default-client-scopes/${scope.id}`, 'PUT');
+  }
   // Update mappers explicitly too; older existing clients must receive the audience.
   const mappers = await api(`/clients/${list[0].id}/protocol-mappers/models`);
   const existing = mappers.find((mapper) => mapper.name === audience.name);
@@ -77,9 +91,13 @@ await client('tops-api', { bearerOnly: true, publicClient: false });
 await client('tops-web', {
   publicClient: true,
   standardFlowEnabled: true,
+  defaultClientScopes: ['basic', 'roles', 'profile'],
   redirectUris: [`${publicUrl}/auth/callback`],
   webOrigins: [publicUrl],
-  attributes: { 'pkce.code.challenge.method': 'S256' },
+  attributes: {
+    'pkce.code.challenge.method': 'S256',
+    'post.logout.redirect.uris': `${publicUrl}/`,
+  },
 });
 const report = {
   realm: 'tops',

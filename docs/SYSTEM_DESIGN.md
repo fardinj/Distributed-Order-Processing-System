@@ -1,6 +1,6 @@
 # Backend system design
 
-Status: this is the selected target design. Steps 1-4 implement private services, identity/admin APIs, checkout/admission, reliable messaging and payment/Bank recovery with durable fulfillment dispatch. Typed fulfillment/refund execution and public cancellation remain later. See [PAYMENTS_AND_BANK_RECOVERY.md](PAYMENTS_AND_BANK_RECOVERY.md) and [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md).
+Status: this is the selected target design. Steps 1-5 implement private services, protected checkout/admin APIs, reliable messaging, payment recovery, local typed effects, aggregates and whole-line refunds. Public cancellation/retry/review, Redis and UI remain later. See [FULFILLMENT_AND_REFUNDS.md](FULFILLMENT_AND_REFUNDS.md) and [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md).
 
 ## Services and ownership
 

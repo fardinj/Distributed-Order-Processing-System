@@ -86,3 +86,5 @@ Acceptance target: beyond sustainable capacity, rejections rise while memory/bac
 4. Add gateway and Commerce/Billing replicas. Redis restores shared rate limits; SQL admission/uniqueness and outbox/inbox keep correctness. Rebudget total DB connections and use a pooler if necessary.
 5. Scale processors by measured queue pressure while keeping Commerce's shared ownership and order/subscription/inventory locks. Only split a domain into a new owning service when the added result/cancellation protocols are justified.
 6. Partition/retain completed history/outbox data and use read projections for heavy reporting. Never archive unresolved financial operations or live work out of their recovery path.
+
+Step 5 additionally rejects a computed checkout work snapshot over 250,000 UTF-8 bytes before acceptance, leaving envelope headroom for server-derived prices. This is a work/payload bound, not a monetary ceiling; see FULFILLMENT_AND_REFUNDS.md. Typed workers/refund schedulers share existing owner pools and runtime caps. Unsettled review money retains its admission slot.

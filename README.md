@@ -1,6 +1,6 @@
 # TOPS — distributed order processing
 
-Docker-first NestJS/TypeScript workspace. Steps 1-4 provide isolated services, exact IRR, OIDC-protected catalog/admin/checkout APIs, reliable messaging and payment/Bank recovery. Fulfillment/refund execution and the Persian UI are later milestones.
+Docker-first NestJS/TypeScript workspace. Steps 1-5 provide isolated services, exact IRR, protected catalog/admin/checkout APIs, reliable messaging, payment recovery, typed fulfillment and whole-line refunds. Public cancellation/retry/review controls, Redis features and the Persian UI are later milestones.
 
 ## Start or upgrade
 
@@ -17,6 +17,7 @@ docker compose --profile tools run --rm --build tools
 docker compose --profile tools run --rm --build foundation-checks
 docker compose --profile tools run --rm --build checkout-checks
 docker compose --profile tools run --rm --build payment-checks
+docker compose --profile tools run --rm --build fulfillment-checks
 ```
 
 Setup creates `.env`, random passwords and hashed broker definitions in gitignored `.local/`. It preserves existing credentials; rerun when new secret names are introduced. Start infrastructure and apply migrations before domain apps: readiness now checks that each owner's schema exists.
@@ -32,7 +33,8 @@ apps/
   gateway/src/           # JWT verification and allowlisted client proxies
   commerce/
     src/modules/catalog # Products, audited/versioned inventory administration
-    src/modules/orders  # Admission, checkout revisions, expiry and protected reads
+    src/modules/orders  # Admission, checkout, payment entry and protected reads
+    src/modules/fulfillment # Typed effects, aggregates, refunds and shortage action
     prisma/             # Owned schema and versioned custom SQL migrations
   billing/              # Financial ledger, preparation and leased bank recovery
   bank-simulator/prisma/# Private charge execution, deadline and no-charge fencing
@@ -100,6 +102,7 @@ docker compose --profile tools run --rm --build tools
 docker compose --profile tools run --rm --build foundation-checks
 docker compose --profile tools run --rm --build checkout-checks
 docker compose --profile tools run --rm --build payment-checks
+docker compose --profile tools run --rm --build fulfillment-checks
 ```
 
 Foundation checks use real OIDC principals, huge money, concurrent admin/refund changes and SQL guards. They create/deactivate their own test products and roll back/remove only known test-ledger fixtures, retaining audit/discrepancy evidence. No other data is cleared. Seeds preserve later admin edits; user passwords are set on first creation rather than silently reset on reruns.
@@ -118,4 +121,4 @@ This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16
 
 Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
 
-Next is [roadmap step 5](docs/ROADMAP.md): typed fulfillment, aggregate completion and refund execution. Review [payment/Bank recovery](docs/PAYMENTS_AND_BANK_RECOVERY.md), [checkout/outbox](docs/CHECKOUT_AND_OUTBOX.md) and [verification evidence](docs/PAYMENT_VERIFICATION.md). Public cancellation comes in step 6 and the Persian UI in step 7.
+Next is [roadmap step 6](docs/ROADMAP.md): public cancellation/retry/review, recovery-cost/circuit controls and all three Redis uses. Review [fulfillment/refund contracts](docs/FULFILLMENT_AND_REFUNDS.md) and [executed evidence](docs/FULFILLMENT_VERIFICATION.md). The Persian UI remains step 7.

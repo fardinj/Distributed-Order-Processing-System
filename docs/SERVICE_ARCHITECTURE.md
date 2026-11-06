@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: private ownership, checkout/admission, outbox/inbox and payment-owned stock/Bank recovery are implemented. Billing owns financial results; Bank owns its durable deadline/no-charge fence; Commerce applies versioned projections and schedules local fulfillment jobs. See [payment contracts](PAYMENTS_AND_BANK_RECOVERY.md) and [evidence](PAYMENT_VERIFICATION.md). Fulfillment/refund execution comes next.
+Status: steps 1-5 implement private ownership, identity/admin/checkout, reliable messaging, financial recovery, local typed fulfillment and whole-line returns. Commerce owns effects and resolution; Billing owns captured/refundable budgets; Bank owns returns. See [fulfillment contracts](FULFILLMENT_AND_REFUNDS.md) and [evidence](FULFILLMENT_VERIFICATION.md). Public controls/Redis are next.
 
 ## Two different gateways
 

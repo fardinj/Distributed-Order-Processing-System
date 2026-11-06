@@ -1,7 +1,5 @@
 # Bank simulator
 
-Independent provider-ledger boundary with its own database/credentials. Stable charge/refund operation identities and the 15-minute pending-payment deadline will be implemented in the payment milestone.
+Step 4 implements Billing-only `internal/charges` init/lookup/execute/cancel APIs in `src/charges.ts`, using the private Prisma pool in `src/database.ts`. Durable initialization fixes the 900-second deadline; row/advisory locks, terminal guards and no-charge tombstones fence duplicates/cancellation/deadline races. A bounded scanner fails due pending operations. Private fixtures choose success, decline or timeout before/after charge; no customer fault override exists. See [payment contracts](../../docs/PAYMENTS_AND_BANK_RECOVERY.md).
 
-Private schema/migrations now contain charge/refund ledgers and deterministic simulation-rule fixtures, unconstrained IRR, immutable operation/terminal identities and a fixed 15-minute pending deadline guard. Runtime API currently exposes health and protected service-identity diagnostics, not execution of those rules.
-
-No exactly-once charging claim is made before the payment milestone implements/reconciles the stable operation protocol. No broker/other-owner DB credentials or migrator password are mounted into runtime.
+Runtime receives only Bank DB credentials and verifies Billing OIDC service identity; it has no broker, migrator or other-owner DB credentials. SQL protects exact money, fixed deadlines, immutable terminal outcomes and refund budgets. Refund execution is a later milestone.

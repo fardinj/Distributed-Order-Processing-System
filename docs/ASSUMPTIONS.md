@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01-Q21 choices are selected. Steps 1-3 are implemented as of 2026-11-06; checkout/admission/outbox defaults and evidence are recorded in [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). Later refinements supersede earlier conflicting suggestions. Payment execution and UI remain planned.
+Status: Q01-Q21 choices are selected. Steps 1-4 are implemented as of 2026-11-06; payment entry/recovery contracts and evidence are in [PAYMENTS_AND_BANK_RECOVERY.md](PAYMENTS_AND_BANK_RECOVERY.md) and [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md). Fulfillment/refund execution, public cancellation and UI remain later milestones.
 
 ## Assignment requirements
 

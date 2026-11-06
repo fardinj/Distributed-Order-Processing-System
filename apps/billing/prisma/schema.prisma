@@ -4,18 +4,25 @@ generator client {
 }
 
 model Payment {
-  id              String           @id @db.Uuid
-  orderId         String           @unique @map("order_id") @db.Uuid
-  operationKey    String           @unique @map("operation_key") @db.VarChar(150)
-  customerId      String           @map("customer_id") @db.VarChar(128)
-  amountMinor     Decimal          @map("amount_minor") @db.Decimal
-  currency        String           @default("IRR") @db.VarChar(3)
-  status          String           @default("PENDING") @db.VarChar(30)
-  version         Int              @default(1)
-  nextReconcileAt DateTime?        @map("next_reconcile_at") @db.Timestamptz(6)
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  refunds         Refund[]
-  attempts        PaymentAttempt[]
+  id               String           @id @db.Uuid
+  orderId          String           @unique @map("order_id") @db.Uuid
+  operationKey     String           @unique @map("operation_key") @db.VarChar(150)
+  customerId       String           @map("customer_id") @db.VarChar(128)
+  amountMinor      Decimal          @map("amount_minor") @db.Decimal
+  currency         String           @default("IRR") @db.VarChar(3)
+  status           String           @default("PENDING") @db.VarChar(30)
+  version          Int              @default(1)
+  checkoutRevision Int              @default(1) @map("checkout_revision")
+  correlationId    String           @default("payment-recovery") @map("correlation_id") @db.VarChar(80)
+  bankDeadlineAt   DateTime?        @map("bank_deadline_at") @db.Timestamptz(6)
+  bankReference    String?          @map("bank_reference") @db.VarChar(200)
+  lookupCount      Int              @default(0) @map("lookup_count")
+  leaseToken       String?          @map("lease_token") @db.Uuid
+  leaseUntil       DateTime?        @map("lease_until") @db.Timestamptz(6)
+  nextReconcileAt  DateTime?        @map("next_reconcile_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  refunds          Refund[]
+  attempts         PaymentAttempt[]
 
   @@map("payments")
 }

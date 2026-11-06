@@ -4,14 +4,15 @@ generator client {
 }
 
 model BankOperation {
-  operationKey String       @id @map("operation_key") @db.VarChar(150)
-  amountMinor  Decimal      @map("amount_minor") @db.Decimal
-  currency     String       @default("IRR") @db.VarChar(3)
-  status       String       @default("PENDING") @db.VarChar(30)
-  reference    String?      @db.VarChar(200)
-  initiatedAt  DateTime     @default(now()) @map("initiated_at") @db.Timestamptz(6)
-  deadlineAt   DateTime     @map("deadline_at") @db.Timestamptz(6)
-  refunds      BankRefund[]
+  operationKey      String       @id @map("operation_key") @db.VarChar(150)
+  amountMinor       Decimal      @map("amount_minor") @db.Decimal
+  currency          String       @default("IRR") @db.VarChar(3)
+  status            String       @default("PENDING") @db.VarChar(30)
+  simulationOutcome String       @default("SUCCEED") @map("simulation_outcome") @db.VarChar(40)
+  reference         String?      @db.VarChar(200)
+  initiatedAt       DateTime     @default(now()) @map("initiated_at") @db.Timestamptz(6)
+  deadlineAt        DateTime     @map("deadline_at") @db.Timestamptz(6)
+  refunds           BankRefund[]
 
   @@index([status, deadlineAt])
   @@map("bank_operations")
@@ -29,13 +30,29 @@ model BankRefund {
 }
 
 model SimulationRule {
-  reference   String @id @db.VarChar(80)
-  outcome     String @db.VarChar(40)
-  description String @db.VarChar(500)
+  reference   String                     @id @db.VarChar(80)
+  outcome     String                     @db.VarChar(40)
+  description String                     @db.VarChar(500)
+  assignments BankSimulationAssignment[]
 
   @@map("simulation_rules")
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model BankSimulationAssignment {
+  operationKey String         @id @map("operation_key") @db.VarChar(150)
+  reference    String         @db.VarChar(80)
+  rule         SimulationRule @relation(fields: [reference], references: [reference], onDelete: Restrict)
+
+  @@map("bank_simulation_assignments")
+}
+
+model BankChargeCancellation {
+  operationKey String   @id @map("operation_key") @db.VarChar(150)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("bank_charge_cancellations")
 }

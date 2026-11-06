@@ -9,6 +9,7 @@ import {
   type Envelope,
 } from '../../../packages/runtime/src/outbox.js';
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
+import { Payments } from './payments.js';
 
 const money = z.string().regex(/^(0|[1-9][0-9]*)$/);
 const line = z
@@ -45,7 +46,10 @@ const catalogKinds = new Set([
 @Injectable()
 export class BillingWorker implements OnModuleInit, OnModuleDestroy {
   private readonly transport: OutboxWorker;
-  constructor(db: BillingDatabase) {
+  constructor(
+    db: BillingDatabase,
+    private readonly payments: Payments,
+  ) {
     this.transport = new OutboxWorker(
       'billing',
       serviceConfig('billing').rabbit!.url,
@@ -60,6 +64,8 @@ export class BillingWorker implements OnModuleInit, OnModuleDestroy {
     return this.transport.stop();
   }
   private async handle(sql: Sql, event: Envelope) {
+    if (event.kind === 'PaymentRequested' || event.kind === 'PaymentCancellationRequested')
+      return this.payments.accept(sql, event, event.kind === 'PaymentCancellationRequested');
     if (catalogKinds.has(event.kind)) return;
     if (event.kind !== 'CheckoutPrepared') throw new InvalidMessage('UNSUPPORTED_COMMERCE_EVENT');
     const result = prepared.safeParse(event.payload);

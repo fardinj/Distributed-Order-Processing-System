@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: private service ownership, schemas, protected APIs and owner-local checkout preparation delivery are implemented. Outbox/inbox includes confirms, leases, receipts, retries and quarantine; see [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md) and [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). Financial commands/results expand with step 4/5.
+Status: private ownership, checkout/admission, outbox/inbox and payment-owned stock/Bank recovery are implemented. Billing owns financial results; Bank owns its durable deadline/no-charge fence; Commerce applies versioned projections and schedules local fulfillment jobs. See [payment contracts](PAYMENTS_AND_BANK_RECOVERY.md) and [evidence](PAYMENT_VERIFICATION.md). Fulfillment/refund execution comes next.
 
 ## Two different gateways
 

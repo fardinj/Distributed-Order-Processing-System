@@ -81,16 +81,20 @@ model AuditLog {
 }
 
 model CustomerOrder {
-  id                    String             @id @db.Uuid
-  customerId            String             @map("customer_id") @db.VarChar(128)
-  status                String             @default("CHECKOUT_RESERVED") @db.VarChar(40)
-  currency              String             @default("IRR") @db.VarChar(3)
-  totalMinor            Decimal            @map("total_minor") @db.Decimal
-  checkoutRevision      Int                @default(1) @map("checkout_revision")
-  paymentVersion        Int                @default(0) @map("payment_version")
-  cancellationRequested Boolean            @default(false) @map("cancellation_requested")
-  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                    String                    @id @db.Uuid
+  customerId            String                    @map("customer_id") @db.VarChar(128)
+  status                String                    @default("CHECKOUT_RESERVED") @db.VarChar(40)
+  currency              String                    @default("IRR") @db.VarChar(3)
+  totalMinor            Decimal                   @map("total_minor") @db.Decimal
+  checkoutRevision      Int                       @default(1) @map("checkout_revision")
+  checkoutExpiresAt     DateTime?                 @map("checkout_expires_at") @db.Timestamptz(6)
+  preparationVersion    Int                       @default(0) @map("preparation_version")
+  admissionSlot         AdmissionSlot?
+  financialProjection   OrderFinancialProjection?
+  paymentVersion        Int                       @default(0) @map("payment_version")
+  cancellationRequested Boolean                   @default(false) @map("cancellation_requested")
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
   items                 OrderItem[]
   revisions             CheckoutRevision[]
   events                OrderEvent[]
@@ -217,4 +221,59 @@ model ConsumerReceipt {
 
 datasource db {
   provider = "postgresql"
+}
+
+model InboxMessage {
+  consumer    String   @db.VarChar(100)
+  messageId   String   @map("message_id") @db.Uuid
+  envelope    Json
+  status      String   @default("PENDING") @db.VarChar(20)
+  attempts    Int      @default(0)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(6)
+  lastError   String?  @map("last_error") @db.VarChar(80)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([consumer, messageId])
+  @@map("inbox_messages")
+}
+
+model MessageQuarantine {
+  id        String   @id @db.Uuid
+  consumer  String   @db.VarChar(100)
+  reason    String   @db.VarChar(80)
+  evidence  Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("message_quarantine")
+}
+
+model AdmissionBudget {
+  id           Int     @id
+  capacity     Int
+  used         Int     @default(0)
+  acceptingNew Boolean @default(true) @map("accepting_new")
+
+  @@map("admission_budget")
+}
+
+model AdmissionSlot {
+  orderId    String        @id @map("order_id") @db.Uuid
+  releasedAt DateTime?     @map("released_at") @db.Timestamptz(6)
+  order      CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@map("admission_slots")
+}
+
+model OrderFinancialProjection {
+  orderId            String        @id @map("order_id") @db.Uuid
+  revision           Int
+  sourceVersion      Int           @default(0) @map("source_version")
+  status             String        @default("NOT_REQUESTED") @db.VarChar(40)
+  pending            Boolean       @default(false)
+  refundedMinor      Decimal       @default(0) @map("refunded_minor") @db.Decimal
+  pendingRefundMinor Decimal       @default(0) @map("pending_refund_minor") @db.Decimal
+  updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  order              CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@map("order_financial_projections")
 }

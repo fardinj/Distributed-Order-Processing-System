@@ -111,3 +111,39 @@ model ConsumerReceipt {
 datasource db {
   provider = "postgresql"
 }
+
+model InboxMessage {
+  consumer    String   @db.VarChar(100)
+  messageId   String   @map("message_id") @db.Uuid
+  envelope    Json
+  status      String   @default("PENDING") @db.VarChar(20)
+  attempts    Int      @default(0)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(6)
+  lastError   String?  @map("last_error") @db.VarChar(80)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([consumer, messageId])
+  @@map("inbox_messages")
+}
+
+model MessageQuarantine {
+  id        String   @id @db.Uuid
+  consumer  String   @db.VarChar(100)
+  reason    String   @db.VarChar(80)
+  evidence  Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("message_quarantine")
+}
+
+model PreparedCheckout {
+  orderId    String   @id @map("order_id") @db.Uuid
+  customerId String   @map("customer_id") @db.VarChar(128)
+  revision   Int
+  totalMinor Decimal  @map("total_minor") @db.Decimal
+  currency   String   @db.VarChar(3)
+  snapshot   Json
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("prepared_checkouts")
+}

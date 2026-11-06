@@ -109,24 +109,28 @@ model CustomerOrder {
 }
 
 model OrderItem {
-  id               String          @id @db.Uuid
-  orderId          String          @map("order_id") @db.Uuid
-  productId        String          @map("product_id") @db.Uuid
-  name             String          @db.VarChar(200)
-  type             String          @db.VarChar(20)
-  quantity         Int
-  unitPriceMinor   Decimal         @map("unit_price_minor") @db.Decimal
-  lineTotalMinor   Decimal         @map("line_total_minor") @db.Decimal
-  subscriptionDays Int?            @map("subscription_days")
-  status           String          @default("PENDING") @db.VarChar(30)
-  disposition      String          @default("FULFILL") @db.VarChar(30)
-  generation       Int             @default(0)
-  attemptCount     Int             @default(0) @map("attempt_count")
-  nextAttemptAt    DateTime?       @map("next_attempt_at") @db.Timestamptz(6)
-  order            CustomerOrder   @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  reservations     Reservation[]
-  fulfillmentJob   FulfillmentJob?
+  id                     String          @id @db.Uuid
+  orderId                String          @map("order_id") @db.Uuid
+  productId              String          @map("product_id") @db.Uuid
+  name                   String          @db.VarChar(200)
+  type                   String          @db.VarChar(20)
+  quantity               Int
+  unitPriceMinor         Decimal         @map("unit_price_minor") @db.Decimal
+  lineTotalMinor         Decimal         @map("line_total_minor") @db.Decimal
+  subscriptionDays       Int?            @map("subscription_days")
+  status                 String          @default("PENDING") @db.VarChar(30)
+  disposition            String          @default("FULFILL") @db.VarChar(30)
+  generation             Int             @default(0)
+  attemptCount           Int             @default(0) @map("attempt_count")
+  retryVersion           Int             @default(0) @map("retry_version")
+  cycleStartAttempt      Int             @default(0) @map("cycle_start_attempt")
+  recoveryStartedAt      DateTime?       @map("recovery_started_at") @db.Timestamptz(6)
+  infrastructureFailures Int             @default(0) @map("infrastructure_failures")
+  nextAttemptAt          DateTime?       @map("next_attempt_at") @db.Timestamptz(6)
+  order                  CustomerOrder   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product                Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservations           Reservation[]
+  fulfillmentJob         FulfillmentJob?
 
   @@unique([id, productId])
   @@index([orderId, status])
@@ -253,10 +257,12 @@ model MessageQuarantine {
 }
 
 model AdmissionBudget {
-  id           Int     @id
-  capacity     Int
-  used         Int     @default(0)
-  acceptingNew Boolean @default(true) @map("accepting_new")
+  id               Int       @id
+  capacity         Int
+  used             Int       @default(0)
+  acceptingNew     Boolean   @default(true) @map("accepting_new")
+  storageHealthy   Boolean   @default(false) @map("storage_healthy")
+  storageCheckedAt DateTime? @map("storage_checked_at") @db.Timestamptz(6)
 
   @@map("admission_budget")
 }

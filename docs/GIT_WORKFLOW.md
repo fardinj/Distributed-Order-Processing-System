@@ -9,4 +9,4 @@ Use `main` for release-ready history and `develop` as the integration branch. Wo
 
 Use small Conventional Commits (`feat`, `fix`, `test`, `build`, `refactor`, `docs`, `chore`) with a relevant scope. Keep credentials/generated outputs ignored. Run the checks relevant to each change before integration; feature/fix branches merge into `develop` with a reviewed merge/PR. Releases merge into `main` and receive an annotated version tag. Do not force-push shared history.
 
-Current work is on `feature/domain-identity-admin-foundations`. Keep it reviewable in focused commits; publishing/merging is a separate action from local implementation. The remote remains `origin` from the existing repository setup.
+Example: `feature/domain-identity-admin-foundations`. Keep work reviewable in focused commits, then review the diff/check results and finish the feature with an explicit non-fast-forward merge into local `develop`. Retain the feature branch for traceability. `main` changes only through the release/hotfix workflow. Publishing is separate; local implementation does not imply a push. The remote remains `origin`.

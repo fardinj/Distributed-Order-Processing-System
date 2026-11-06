@@ -1,6 +1,6 @@
 # Backend system design
 
-Status: selected business design consolidated on 2026-11-05. Step-1 service boot/isolation/transport evidence is now in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md), dated 2026-11-06; domain migrations/workflows remain planned. [ASSUMPTIONS.md](ASSUMPTIONS.md) is the decision register; [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) preserves choices/examples.
+Status: this document defines the selected target design. Steps 1-2 now provide isolated services, owner schemas, identity and admin APIs; checkout/payment/fulfillment workflows remain planned. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md), [ASSUMPTIONS.md](ASSUMPTIONS.md) and [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
 
 ## Services and ownership
 

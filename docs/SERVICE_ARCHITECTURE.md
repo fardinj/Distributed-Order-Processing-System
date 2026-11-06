@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: Q16 A/Q17 selected on 2026-11-05. Compose service boundaries now boot and pass initial checks; see [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md). Domain commands/projections/outbox persistence remain planned. [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) defines the target workflow.
+Status: service boundaries, owner-local migrations, outbox/receipt tables and protected APIs are implemented. Business command consumers, publication and projections begin in step 3. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md); [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) defines the target workflow.
 
 ## Two different gateways
 

@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01–Q10 selected on 2026-11-04; Q11–Q21/refinements selected on 2026-11-05. Service skeleton and step-1 runtime evidence are implemented as of 2026-11-06; business workflows remain planned. Later refinements supersede earlier conflicting proposals. See SKELETON_VERIFICATION.md for actual results.
+Status: Q01-Q21 business choices are selected. Steps 1 and 2 are implemented as of 2026-11-06: isolated services, owner migrations, exact IRR, OIDC API authorization and audited catalog/inventory foundations. Checkout, workers and UI remain later milestones. See [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md) for executed evidence.
 
 ## Assignment requirements
 

@@ -28,6 +28,32 @@ export class Dependencies implements OnModuleDestroy {
   private rabbitConnecting?: Promise<void>;
   private redisConnecting?: Promise<unknown>;
   private shuttingDown = false;
+  private redisRetryAt = 0;
+
+  /** Optional acceleration only. Offline queues are disabled; SQL guards tolerate lost replies. */
+  async optionalRedis<T>(
+    work: (client: NonNullable<Dependencies['redis']>) => Promise<T>,
+  ): Promise<T | undefined> {
+    if (!this.redis || this.shuttingDown || Date.now() < this.redisRetryAt) return undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        (async () => {
+          await this.redisCheck();
+          return work(this.redis!);
+        })(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Redis operation deadline')), 250);
+        }),
+      ]);
+    } catch {
+      this.redisRetryAt = Date.now() + 1000;
+      if (this.redis.isOpen) this.redis.destroy();
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   constructor(@Inject(CONFIG) private readonly config: ServiceConfig) {
     if (config.database) {

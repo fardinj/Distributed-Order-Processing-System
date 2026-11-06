@@ -11,6 +11,7 @@ import {
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
 import { logRecord } from '../../../packages/runtime/src/logger.js';
 import { PaymentResults } from './modules/orders/payment-results.js';
+import { RefundResults } from './modules/fulfillment/refund-results.js';
 
 const ack = z
   .object({
@@ -31,6 +32,7 @@ export class CommerceWorker implements OnModuleInit, OnModuleDestroy {
     db: CommerceDatabase,
     private readonly checkout: CheckoutService,
     private readonly payments: PaymentResults,
+    private readonly refunds: RefundResults,
   ) {
     this.transport = new OutboxWorker(
       'commerce',
@@ -59,6 +61,7 @@ export class CommerceWorker implements OnModuleInit, OnModuleDestroy {
     await this.transport.stop();
   }
   private async handle(sql: Sql, event: Envelope) {
+    if (event.kind === 'RefundStatusChanged') return this.refunds.apply(sql, event);
     if (event.kind === 'PaymentStatusChanged') return this.payments.apply(sql, event);
     if (event.kind !== 'CheckoutPreparationAcknowledged')
       throw new InvalidMessage('UNSUPPORTED_BILLING_EVENT');

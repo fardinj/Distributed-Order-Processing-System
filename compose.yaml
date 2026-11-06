@@ -1,0 +1,300 @@
+name: ${COMPOSE_PROJECT_NAME:-tops}
+
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: '3'
+
+x-app: &app
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs: ['/tmp:size=16m,mode=1777']
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 20s
+  pids_limit: 100
+  logging: *logging
+  networks: [private]
+  healthcheck:
+    test: [CMD, node, scripts/container-healthcheck.mjs]
+    interval: 15s
+    timeout: 6s
+    start_period: 20s
+    retries: 5
+
+services:
+  gateway:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      args: { SERVICE_NAME: gateway }
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      NODE_OPTIONS: --max-old-space-size=96
+    secrets: [redis_password]
+    networks: [edge, private]
+    ports: ['127.0.0.1:${GATEWAY_PORT:-8080}:3000']
+    mem_limit: 192m
+    cpus: 0.20
+    cpu_shares: 200
+    depends_on:
+      commerce: { condition: service_healthy }
+      billing: { condition: service_healthy }
+      bank-simulator: { condition: service_healthy }
+      identity: { condition: service_healthy }
+
+  commerce:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      args: { SERVICE_NAME: commerce }
+    environment:
+      DB_NAME: commerce
+      DB_USER: commerce_runtime
+      DB_POOL_MAX: '8'
+      DB_PASSWORD_FILE: /run/secrets/commerce_db_password
+      RABBITMQ_USER: commerce
+      RABBITMQ_PASSWORD_FILE: /run/secrets/commerce_rabbitmq_password
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      NODE_OPTIONS: --max-old-space-size=384
+    secrets: [commerce_db_password, commerce_rabbitmq_password, redis_password]
+    mem_limit: 640m
+    cpus: 0.60
+    cpu_shares: 600
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  billing:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      args: { SERVICE_NAME: billing }
+    environment:
+      DB_NAME: billing
+      DB_USER: billing_runtime
+      DB_POOL_MAX: '4'
+      DB_PASSWORD_FILE: /run/secrets/billing_db_password
+      RABBITMQ_USER: billing
+      RABBITMQ_PASSWORD_FILE: /run/secrets/billing_rabbitmq_password
+      NODE_OPTIONS: --max-old-space-size=224
+    secrets: [billing_db_password, billing_rabbitmq_password]
+    mem_limit: 384m
+    cpus: 0.30
+    cpu_shares: 300
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  bank-simulator:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      args: { SERVICE_NAME: bank-simulator }
+    environment:
+      DB_NAME: bank
+      DB_USER: bank_runtime
+      DB_POOL_MAX: '2'
+      DB_PASSWORD_FILE: /run/secrets/bank_db_password
+      NODE_OPTIONS: --max-old-space-size=96
+    secrets: [bank_db_password]
+    mem_limit: 192m
+    cpus: 0.10
+    cpu_shares: 100
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets:
+      [
+        postgres_admin_password,
+        commerce_db_password,
+        commerce_migration_password,
+        billing_db_password,
+        billing_migration_password,
+        bank_db_password,
+        bank_migration_password,
+        identity_db_password,
+      ]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    command:
+      [
+        postgres,
+        -c,
+        max_connections=50,
+        -c,
+        shared_buffers=256MB,
+        -c,
+        work_mem=4MB,
+        -c,
+        maintenance_work_mem=64MB,
+      ]
+    networks: [private]
+    mem_limit: 1536m
+    cpus: 1.00
+    cpu_shares: 1000
+    shm_size: 256m
+    logging: *logging
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'pg_isready -U postgres -d postgres && test -f /var/lib/postgresql/data/.tops-initialized',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:4.3.7-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: +S 2:2 +A 4
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./.local/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    networks: [private]
+    mem_limit: 640m
+    cpus: 0.40
+    cpu_shares: 400
+    logging: *logging
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, check_running]
+      interval: 15s
+      timeout: 10s
+      start_period: 40s
+      retries: 8
+
+  redis:
+    image: redis:8.8.4-alpine
+    restart: unless-stopped
+    entrypoint: [/bin/sh, /opt/tops/entrypoint.sh]
+    secrets: [redis_password]
+    volumes:
+      - ./infrastructure/redis:/opt/tops:ro
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    tmpfs: ['/tmp:size=8m,mode=1777']
+    networks: [private]
+    mem_limit: 192m
+    cpus: 0.10
+    cpu_shares: 100
+    logging: *logging
+    healthcheck:
+      test: [CMD, /bin/sh, /opt/tops/healthcheck.sh]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  identity:
+    image: quay.io/keycloak/keycloak:26.8.1
+    restart: unless-stopped
+    entrypoint: [/bin/bash, /opt/tops/entrypoint.sh]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/identity
+      KC_DB_USERNAME: identity_owner
+      KC_DB_POOL_INITIAL_SIZE: '1'
+      KC_DB_POOL_MIN_SIZE: '1'
+      KC_DB_POOL_MAX_SIZE: '5'
+      KC_BOOTSTRAP_ADMIN_USERNAME: tops_bootstrap_admin
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME: ${PUBLIC_URL:-http://localhost:8080}/identity
+      KC_HTTP_RELATIVE_PATH: /identity
+      KC_HTTP_MANAGEMENT_RELATIVE_PATH: /
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
+      KC_HTTP_MANAGEMENT_HEALTH_ENABLED: 'true'
+      JAVA_OPTS_KC_HEAP: -XX:InitialRAMPercentage=20 -XX:MaxRAMPercentage=65
+    secrets: [identity_db_password, identity_admin_password]
+    volumes:
+      - ./infrastructure/keycloak/entrypoint.sh:/opt/tops/entrypoint.sh:ro
+      - ./infrastructure/keycloak/healthcheck.sh:/opt/tops/healthcheck.sh:ro
+      - ./infrastructure/keycloak/realm:/opt/keycloak/data/import:ro
+    networks: [private]
+    mem_limit: 2048m
+    cpus: 0.60
+    cpu_shares: 600
+    logging: *logging
+    stop_grace_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, /bin/bash, /opt/tops/healthcheck.sh]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 12
+
+  setup:
+    image: node:24.15.0-bookworm-slim
+    profiles: [setup]
+    working_dir: /workspace
+    volumes: ['.:/workspace']
+    network_mode: none
+    command: [node, scripts/setup.mjs]
+
+  tools:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: development
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      NODE_OPTIONS: --max-old-space-size=768
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_rabbitmq_password,
+        billing_rabbitmq_password,
+        redis_password,
+      ]
+    networks: [private]
+    mem_limit: 1024m
+    init: true
+    command: [node, scripts/smoke.mjs]
+
+networks:
+  edge:
+  private:
+    internal: true
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+
+secrets:
+  postgres_admin_password: { file: ./.local/secrets/postgres_admin_password }
+  commerce_db_password: { file: ./.local/secrets/commerce_db_password }
+  commerce_migration_password: { file: ./.local/secrets/commerce_migration_password }
+  billing_db_password: { file: ./.local/secrets/billing_db_password }
+  billing_migration_password: { file: ./.local/secrets/billing_migration_password }
+  bank_db_password: { file: ./.local/secrets/bank_db_password }
+  bank_migration_password: { file: ./.local/secrets/bank_migration_password }
+  identity_db_password: { file: ./.local/secrets/identity_db_password }
+  identity_admin_password: { file: ./.local/secrets/identity_admin_password }
+  rabbitmq_admin_password: { file: ./.local/secrets/rabbitmq_admin_password }
+  commerce_rabbitmq_password: { file: ./.local/secrets/commerce_rabbitmq_password }
+  billing_rabbitmq_password: { file: ./.local/secrets/billing_rabbitmq_password }
+  redis_password: { file: ./.local/secrets/redis_password }

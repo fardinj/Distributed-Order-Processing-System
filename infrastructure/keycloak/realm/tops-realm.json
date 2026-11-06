@@ -1,0 +1,17 @@
+{
+  "realm": "tops",
+  "enabled": true,
+  "displayName": "سامانه پردازش سفارش",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "sslRequired": "external",
+  "accessTokenLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": { "realm": [{ "name": "customer" }, { "name": "admin" }] },
+  "users": [],
+  "clients": []
+}

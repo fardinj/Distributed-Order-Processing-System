@@ -1,0 +1,8 @@
+# Optional local diagnostics only; never required for normal service traffic.
+services:
+  postgres:
+    ports: ['127.0.0.1:15432:5432']
+  rabbitmq:
+    ports: ['127.0.0.1:15672:15672']
+  redis:
+    ports: ['127.0.0.1:16379:6379']

@@ -38,8 +38,8 @@ export function serviceConfig(name: ServiceName): ServiceConfig {
   const config: ServiceConfig = { name, port: positiveInteger('PORT', 3000), upstreams: {} };
   if (name !== 'gateway') {
     config.requiredTable = {
-      commerce: 'public.products',
-      billing: 'public.payments',
+      commerce: 'public.admission_budget',
+      billing: 'public.prepared_checkouts',
       'bank-simulator': 'public.bank_operations',
     }[name];
     config.database = {

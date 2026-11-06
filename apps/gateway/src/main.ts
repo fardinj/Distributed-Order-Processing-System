@@ -27,11 +27,11 @@ class GatewayController {
   index() {
     return {
       application: 'tops',
-      milestone: 'domain-foundations',
+      milestone: 'checkout-preparation',
       health: '/health/ready',
       identity: '/identity/realms/tops/.well-known/openid-configuration',
       message:
-        'Authenticated catalog/admin and owner-read foundations are available under /api. Checkout/payment workers and the Persian UI are subsequent milestones.',
+        'Authenticated catalog/admin, checkout reservations and reliable preparation are available under /api. Payment execution and the Persian UI are subsequent milestones.',
     };
   }
   @Public()
@@ -85,7 +85,8 @@ bootstrap(GatewayModule, config, (app) => {
       response: import('express').Response,
       next: import('express').NextFunction,
     ) => {
-      if (!/^\/api\/(products(?:\/|$)|admin(?:\/|$)|orders\/)/.test(request.path)) return next();
+      if (!/^\/api\/(products(?:\/|$)|admin(?:\/|$)|orders(?:\/|$))/.test(request.path))
+        return next();
       try {
         await verifier.authenticate(request.headers.authorization);
         commerceProxy(request, response, next);

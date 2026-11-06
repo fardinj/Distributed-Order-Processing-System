@@ -9,11 +9,19 @@ import { AdminCatalogController, CatalogController } from './modules/catalog/cat
 import { OrdersController } from './modules/orders/orders.controller.js';
 import { APP_FILTER } from '@nestjs/core';
 import { DatabaseErrors } from './database-errors.js';
+import { CheckoutService } from './modules/orders/checkout.service.js';
+import { CommerceWorker } from './worker.js';
 
 const config = serviceConfig('commerce');
 @Module({
   imports: [RuntimeModule.forRoot(config)],
-  providers: [CommerceDatabase, CatalogService, { provide: APP_FILTER, useClass: DatabaseErrors }],
+  providers: [
+    CommerceDatabase,
+    CatalogService,
+    CheckoutService,
+    CommerceWorker,
+    { provide: APP_FILTER, useClass: DatabaseErrors },
+  ],
   controllers: [CatalogController, AdminCatalogController, OrdersController],
 })
 class CommerceModule {}

@@ -91,6 +91,8 @@ model CustomerOrder {
   preparationVersion    Int                       @default(0) @map("preparation_version")
   admissionSlot         AdmissionSlot?
   financialProjection   OrderFinancialProjection?
+  paymentOperationKey   String?                   @unique @map("payment_operation_key") @db.VarChar(150)
+  paymentEntryRevision  Int?                      @map("payment_entry_revision")
   paymentVersion        Int                       @default(0) @map("payment_version")
   cancellationRequested Boolean                   @default(false) @map("cancellation_requested")
   createdAt             DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -105,23 +107,24 @@ model CustomerOrder {
 }
 
 model OrderItem {
-  id               String        @id @db.Uuid
-  orderId          String        @map("order_id") @db.Uuid
-  productId        String        @map("product_id") @db.Uuid
-  name             String        @db.VarChar(200)
-  type             String        @db.VarChar(20)
+  id               String          @id @db.Uuid
+  orderId          String          @map("order_id") @db.Uuid
+  productId        String          @map("product_id") @db.Uuid
+  name             String          @db.VarChar(200)
+  type             String          @db.VarChar(20)
   quantity         Int
-  unitPriceMinor   Decimal       @map("unit_price_minor") @db.Decimal
-  lineTotalMinor   Decimal       @map("line_total_minor") @db.Decimal
-  subscriptionDays Int?          @map("subscription_days")
-  status           String        @default("PENDING") @db.VarChar(30)
-  disposition      String        @default("FULFILL") @db.VarChar(30)
-  generation       Int           @default(0)
-  attemptCount     Int           @default(0) @map("attempt_count")
-  nextAttemptAt    DateTime?     @map("next_attempt_at") @db.Timestamptz(6)
-  order            CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  product          Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  unitPriceMinor   Decimal         @map("unit_price_minor") @db.Decimal
+  lineTotalMinor   Decimal         @map("line_total_minor") @db.Decimal
+  subscriptionDays Int?            @map("subscription_days")
+  status           String          @default("PENDING") @db.VarChar(30)
+  disposition      String          @default("FULFILL") @db.VarChar(30)
+  generation       Int             @default(0)
+  attemptCount     Int             @default(0) @map("attempt_count")
+  nextAttemptAt    DateTime?       @map("next_attempt_at") @db.Timestamptz(6)
+  order            CustomerOrder   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product          Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
   reservations     Reservation[]
+  fulfillmentJob   FulfillmentJob?
 
   @@unique([id, productId])
   @@index([orderId, status])
@@ -267,6 +270,9 @@ model AdmissionSlot {
 model OrderFinancialProjection {
   orderId            String        @id @map("order_id") @db.Uuid
   revision           Int
+  operationKey       String?       @map("operation_key") @db.VarChar(150)
+  bankReference      String?       @map("bank_reference") @db.VarChar(200)
+  bankDeadlineAt     DateTime?     @map("bank_deadline_at") @db.Timestamptz(6)
   sourceVersion      Int           @default(0) @map("source_version")
   status             String        @default("NOT_REQUESTED") @db.VarChar(40)
   pending            Boolean       @default(false)
@@ -276,4 +282,14 @@ model OrderFinancialProjection {
   order              CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@map("order_financial_projections")
+}
+
+model FulfillmentJob {
+  itemId      String    @id @map("item_id") @db.Uuid
+  status      String    @default("READY") @db.VarChar(30)
+  availableAt DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  generation  Int       @default(0)
+  item        OrderItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@map("fulfillment_jobs")
 }

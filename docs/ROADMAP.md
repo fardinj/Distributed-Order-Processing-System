@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: Q01-Q21 choices are selected. Steps 1-5 are implemented as of 2026-11-06; see [step-5 evidence](FULFILLMENT_VERIFICATION.md) and earlier milestone reports. Step 6 is next. The expanded scope is not bound by the original 5-7-day estimate.
+Status: Q01-Q21 choices are selected. Steps 1-6 are implemented as of 2026-11-06; see [step-6 evidence](RECOVERY_VERIFICATION.md) and earlier milestone reports. Step 7 (small Persian UI) is next. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -62,6 +62,8 @@ Completed: distinct typed effects with transactional evidence/retries, immutable
 Exit: duplicate delivery cannot duplicate access/extension/shipment/charge/refund; order COMPLETED requires all items fulfilled; 100 paid with failed 50 line returns exactly 50 while retaining successes.
 
 ## 6. Cancellation, adaptive retries/review and Redis
+
+Implemented contracts/defaults: [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md). Public guarded actions, SQL-safe Redis degradation, financial scheduling preference and storage admission monitoring are available. Load capacity remains unmeasured until step 8.
 
 - Paid cancellation wins only before first item starts, using Commerce parent lock. UNKNOWN-payment intent blocks dispatch and refunds later success; definite failure needs none. Report cancellation separately from confirmed returned money.
 - Normal work cycle is initial + three retries, 10s base/factor 2/positive jitter; after cycle assess recoverability, health and cost. Continue/defer with bounded due work where plausible, review when human action/low recovery likelihood/excessive repeated cost warrants it.

@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01-Q21 choices are selected. Steps 1-5 are implemented as of 2026-11-06. Typed effects, whole-line refunds and their evidence are in [FULFILLMENT_AND_REFUNDS.md](FULFILLMENT_AND_REFUNDS.md) and [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md). Public cancellation/retry/review, Redis features and UI remain later milestones.
+Status: Q01-Q21 choices are selected. Steps 1-6 are implemented as of 2026-11-06. Public cancellation/retry/review, recovery-cost policy, Redis features and storage admission are described in [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md), with [executed evidence](RECOVERY_VERIFICATION.md). The Persian UI remains step 7.
 
 ## Assignment requirements
 

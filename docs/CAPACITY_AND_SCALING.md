@@ -1,6 +1,6 @@
 # Capacity, overload protection and scale-up
 
-Status: D22 plans an 8-GB/4-core deployment. Initial service caps and startup/post-smoke memory were verified on 2026-11-06 in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md). Values below are tunable defaults, not measured workload capacity or an RPS promise. Disk/backups have developer-host assumptions; storage quotas and restore evidence remain pending.
+Status: D22 plans an 8-GB/4-core deployment. Initial measurements are in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md); current limits/evidence are in [RECOVERY_VERIFICATION.md](RECOVERY_VERIFICATION.md). Values are tunable defaults, not measured capacity or an RPS promise. Free-space admission protection is implemented; host storage quotas and backup/restore evidence remain pending.
 
 ## Resource envelope
 
@@ -17,7 +17,8 @@ Budget against 8 GiB (8192 MiB) initially; if the actual host provides 8 decimal
 | RabbitMQ, single local node | 640 | 0.40 |
 | Redis | 192 | 0.10 |
 | Lightweight metrics/log shipping | 128 | 0.05 |
-| OS, filesystem cache, runtime overhead and spare capacity | 2240 | 0.65 |
+| Storage admission monitor | 64 | 0.05 |
+| OS, filesystem cache, runtime overhead and spare capacity | 2176 | 0.60 |
 | Total | 8192 | 4.00 |
 
 These are budgets to validate, not proof that each runtime starts/fits. Limit Node heaps below their total role budget and account for native buffers. If API/workers run as separate processes, they split the listed service total rather than each receiving it. Avoid a large local observability stack. Keycloak recommends a 2 GB limit for smaller production-ready container deployments; provider memory is deliberately included ([container guidance](https://www.keycloak.org/server/containers)).
@@ -31,14 +32,14 @@ Use CPU weights and bounded concurrency rather than forcing every process to run
 | Commerce executions | 4 active item tasks total, not 4 per processor; rotate fairly across types/orders |
 | Billing work | 2 active provider calls plus 2 small reconciliation/result slots; avoid starvation by charge work |
 | Bank simulator | 4 active requests; delays represented by durable due times, not sleeping open SQL transactions |
-| Gateway | 32 active domain requests; separate small reserved lane for existing-work controls/result ingestion |
+| Gateway | 24 ordinary active requests plus eight reserved existing-work mutation slots |
 | DB pools | Commerce 8, Billing 4, Bank 2, Identity initially 5; total includes all replicas/processes, then tune provider needs |
 | PostgreSQL connections | Initial ceiling 50, leaving room for migrations/operations; cap query/work memory per connection |
 | Broker consumers | Prefetch near actual execution slots; no unbounded in-process buffering |
 | Publisher/scheduler | Batches of at most 50 initially, leased/claimed in SQL, yield between batches |
 | API inputs | Initial 50 lines/order, physical quantity 100/line, 100 records/page, 64 KiB order body |
-| Rate limits | Start ordinary authenticated API at 60/minute/principal with a bounded burst; login 5/minute/source and admin mutations 30/minute/principal, then tune with abuse/load evidence |
-| Redis quota fallback | Same local policy per gateway instance, at most 10,000 cached limiter keys with expiry/LRU; document weaker combined quota and reset behavior |
+| Rate limits | Minute defaults: reads 1,800/principal, new POSTs 120, admin mutations 180, existing actions 600; edge 6,000/source, login/token POST 5/source. Developer/demo values require deployment tuning. |
+| Redis quota fallback | Same local limits; 4,096 identity/lane entries plus shared overflow bucket, expiry without eviction of active entries; explicitly weaker combined quotas and restart resets. |
 | UI polling | One poll per visible order every 5–10s; pause hidden tabs, back off on overload; no per-row polling |
 
 Limits concern work size, not a maximum money value. An oversized HTTP payload can still receive 413 before admission, even when its content is a valid large integer. Values are transparent implementation defaults, not user-selected business caps. Revisit if a valid demonstration flow needs more.
@@ -53,7 +54,7 @@ Limits concern work size, not a maximum money value. An oversized HTTP payload c
 
 Proposed initial pending-order budget: 200 non-settled admitted orders, then adjust using measured size, queue age and drain rate. Shared counters protect concurrent admission; local CPU/lag/RSS readings supplement them. Never claim a Redis-independent global admission cap based only on each gateway's memory.
 
-Step 3 implements this SQL budget and slot ledger. Expired unpaid checkout releases its settled slot; explicit refresh requires capacity again. New admission also checks a 10,000-row pending outbox/inbox threshold; each owner bounds pending inbox staging at 10,000, and broker queues reject publication at 1,000 messages/16 MiB. Local create concurrency/RSS/lag safeguards and reconciliation commands are documented in [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md). Host CPU/disk watermarks and financial priority lanes remain later work; current limits are not measured RPS.
+Step 3 implements the SQL budget/slot ledger and bounded SQL/broker backlogs; see [CHECKOUT_AND_OUTBOX.md](CHECKOUT_AND_OUTBOX.md). Step 6 adds storage freshness/watermarks, financial scheduling preference and gateway lanes; see [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md). Host CPU telemetry and measured capacity remain step 8. Redis and review states never override SQL admission accounting.
 
 ## Priority and backpressure
 

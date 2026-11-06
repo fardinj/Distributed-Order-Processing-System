@@ -1,5 +1,7 @@
 # Commerce
 
+Step 6 adds `modules/orders/actions.controller.ts` for owner cancellation, guarded audited retry cycles, attempt history and admin review inspection. Recovery checkpoints/Redis overlap are in `modules/fulfillment/fulfillment.service.ts`; SQL storage admission remains in checkout. Public catalog reads use an optional two-second Redis cache; admin/checkout truth stays in PostgreSQL. See [recovery contracts](../../docs/CANCELLATION_RECOVERY_AND_REDIS.md).
+
 Owns orders, checkout revisions, catalog, stock/reservations, local fulfillment, item dispositions and order history. Digital/subscription/physical processors are separate modules in this service, sharing its short SQL transaction boundary.
 
 `src/modules/catalog` implements protected catalog/admin mutations, audit/idempotency and guarded stock reconciliation. `src/modules/orders` supplies atomic admission/checkout, current-status replay, expiry/reacquisition/revision confirmation and protected reads. `src/worker.ts` schedules bounded expiry and owner-local outbox/inbox preparation. `src/database.ts` manages the owner Prisma/pg pool; `database-errors.ts` maps persistence conflicts safely. Fulfillment execution is implemented in step 5. See [checkout contracts](../../docs/CHECKOUT_AND_OUTBOX.md).

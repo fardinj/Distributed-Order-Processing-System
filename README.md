@@ -1,6 +1,6 @@
 # TOPS — distributed order processing
 
-Docker-first NestJS/TypeScript workspace. Steps 1-5 provide isolated services, exact IRR, protected catalog/admin/checkout APIs, reliable messaging, payment recovery, typed fulfillment and whole-line refunds. Public cancellation/retry/review controls, Redis features and the Persian UI are later milestones.
+Docker-first NestJS/TypeScript workspace. Steps 1-6 provide isolated services, exact IRR, protected catalog/admin/checkout APIs, reliable messaging, payment recovery, fulfillment, refunds, cancellation/review/retry actions and Redis features with SQL-safe outages. The small Persian UI is next (step 7).
 
 ## Start or upgrade
 
@@ -18,9 +18,12 @@ docker compose --profile tools run --rm --build foundation-checks
 docker compose --profile tools run --rm --build checkout-checks
 docker compose --profile tools run --rm --build payment-checks
 docker compose --profile tools run --rm --build fulfillment-checks
+docker compose --profile tools run --rm --build recovery-checks
 ```
 
 Setup creates `.env`, random passwords and hashed broker definitions in gitignored `.local/`. It preserves existing credentials; rerun when new secret names are introduced. Start infrastructure and apply migrations before domain apps: readiness now checks that each owner's schema exists.
+
+New checkout admission requires fresh healthy storage observations. Normal Compose starts `storage-monitor`; three good five-second samples open admission. Failure/staleness stops new admission while accepted workflows retain state. See [recovery/Redis contracts](docs/CANCELLATION_RECOVERY_AND_REDIS.md) and [executed evidence](docs/RECOVERY_VERIFICATION.md).
 
 Migration/seed commands are additive and idempotent. `identity-init --fixtures` explicitly installs local demo users and separate machine test clients; omit that flag for nonfixture provisioning. It prints no password/token. Human demo admin requires TOTP setup. Never reset data or delete volumes to make a check pass.
 
@@ -121,4 +124,4 @@ This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16
 
 Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
 
-Next is [roadmap step 6](docs/ROADMAP.md): public cancellation/retry/review, recovery-cost/circuit controls and all three Redis uses. Review [fulfillment/refund contracts](docs/FULFILLMENT_AND_REFUNDS.md) and [executed evidence](docs/FULFILLMENT_VERIFICATION.md). The Persian UI remains step 7.
+Next is [roadmap step 7](docs/ROADMAP.md): the small Persian RTL customer/admin UI. Review [recovery/Redis contracts](docs/CANCELLATION_RECOVERY_AND_REDIS.md) and [executed evidence](docs/RECOVERY_VERIFICATION.md). Sustained load and delivery evidence remain step 8.

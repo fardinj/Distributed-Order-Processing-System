@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01-Q21 choices are selected. Steps 1-4 are implemented as of 2026-11-06; payment entry/recovery contracts and evidence are in [PAYMENTS_AND_BANK_RECOVERY.md](PAYMENTS_AND_BANK_RECOVERY.md) and [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md). Fulfillment/refund execution, public cancellation and UI remain later milestones.
+Status: Q01-Q21 choices are selected. Steps 1-5 are implemented as of 2026-11-06. Typed effects, whole-line refunds and their evidence are in [FULFILLMENT_AND_REFUNDS.md](FULFILLMENT_AND_REFUNDS.md) and [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md). Public cancellation/retry/review, Redis features and UI remain later milestones.
 
 ## Assignment requirements
 

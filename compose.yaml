@@ -391,7 +391,7 @@ services:
         billing_rabbitmq_password,
       ]
 
-  payment-checks:
+  payment-checks: &payment-checks
     <<: *checkout-checks
     entrypoint: [node, scripts/payment-smoke.mjs]
     secrets:
@@ -410,6 +410,10 @@ services:
         commerce_service_password,
         billing_service_password,
       ]
+
+  fulfillment-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/fulfillment-smoke.mjs]
 
 networks:
   edge:

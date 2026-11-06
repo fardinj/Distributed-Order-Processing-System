@@ -6,6 +6,7 @@ import {
   type Envelope,
   type Sql,
 } from '../../../../../packages/runtime/src/outbox.js';
+import { Settlement } from '../fulfillment/settlement.js';
 
 const result = z
   .object({
@@ -26,6 +27,7 @@ const result = z
   .strict();
 @Injectable()
 export class PaymentResults {
+  constructor(private readonly settlement: Settlement) {}
   async apply(sql: Sql, event: Envelope) {
     const parsed = result.safeParse(event.payload);
     if (!parsed.success) throw new InvalidMessage('INVALID_PAYMENT_RESULT');
@@ -175,5 +177,6 @@ export class PaymentResults {
         }),
       ],
     );
+    if (final) await this.settlement.aggregate(sql, p.orderId);
   }
 }

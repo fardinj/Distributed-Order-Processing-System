@@ -6,11 +6,12 @@ import { logRecord } from '../../../packages/runtime/src/logger.js';
 import { BillingDatabase } from './database.js';
 import { BillingWorker } from './worker.js';
 import { Payments } from './payments.js';
+import { Refunds } from './refunds.js';
 
 const config = serviceConfig('billing');
 @Module({
   imports: [RuntimeModule.forRoot(config)],
-  providers: [BillingDatabase, BillingWorker, Payments],
+  providers: [BillingDatabase, BillingWorker, Payments, Refunds],
 })
 class BillingModule {}
 

@@ -27,11 +27,11 @@ class GatewayController {
   index() {
     return {
       application: 'tops',
-      milestone: 'payment-recovery',
+      milestone: 'fulfillment-refunds',
       health: '/health/ready',
       identity: '/identity/realms/tops/.well-known/openid-configuration',
       message:
-        'Authenticated catalog/admin, checkout reservations and payment recovery are available under /api. Fulfillment/refund execution and the Persian UI are subsequent milestones.',
+        'Authenticated catalog/admin, checkout, payment recovery, typed fulfillment and whole-line refunds are available under /api. Public cancellation/review actions and the Persian UI are subsequent milestones.',
     };
   }
   @Public()

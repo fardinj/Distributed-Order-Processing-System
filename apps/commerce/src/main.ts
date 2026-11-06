@@ -12,6 +12,10 @@ import { DatabaseErrors } from './database-errors.js';
 import { CheckoutService } from './modules/orders/checkout.service.js';
 import { CommerceWorker } from './worker.js';
 import { PaymentResults } from './modules/orders/payment-results.js';
+import { Settlement } from './modules/fulfillment/settlement.js';
+import { Fulfillment } from './modules/fulfillment/fulfillment.service.js';
+import { RefundResults } from './modules/fulfillment/refund-results.js';
+import { AdminShortage, FulfillmentReads } from './modules/fulfillment/fulfillment.controller.js';
 
 const config = serviceConfig('commerce');
 @Module({
@@ -22,9 +26,18 @@ const config = serviceConfig('commerce');
     CheckoutService,
     CommerceWorker,
     PaymentResults,
+    Settlement,
+    Fulfillment,
+    RefundResults,
     { provide: APP_FILTER, useClass: DatabaseErrors },
   ],
-  controllers: [CatalogController, AdminCatalogController, OrdersController],
+  controllers: [
+    CatalogController,
+    AdminCatalogController,
+    OrdersController,
+    AdminShortage,
+    FulfillmentReads,
+  ],
 })
 class CommerceModule {}
 

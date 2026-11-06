@@ -1,6 +1,6 @@
 # Payment entry and bank recovery
 
-Step 4 implements payment entry, bank execution/reconciliation, terminal stock transitions and durable fulfillment dispatch. Typed fulfillment/refund execution is step 5. Public cancellation/retry actions are step 6; the Persian UI remains step 7. The cancellation protocol described below is an internal foundation, not a finished customer cancellation API.
+Step 4 implements payment entry, bank execution/reconciliation, terminal stock transitions and durable fulfillment dispatch. Typed fulfillment/refund execution is implemented in [step 5](FULFILLMENT_AND_REFUNDS.md). Public cancellation/retry actions are step 6; the Persian UI remains step 7. The cancellation protocol described below is an internal foundation, not a finished customer cancellation API.
 
 ## Customer contract
 
@@ -62,7 +62,7 @@ Billing emits complete `PaymentStatusChanged` snapshots with source version, imm
 
 Order detail exposes financial `sourceVersion`, status, `pending`, `bankReference` and `bankDeadlineAt`. `pending:true` means the financial result is unresolved or still being delivered, not a successful charge. `PAYMENT_REVIEW` is the visible UNKNOWN workflow state; reconciliation continues automatically.
 
-- SUCCEEDED: change PAYMENT_PENDING holds to ALLOCATED without another stock decrement. Insert one READY `fulfillment_jobs` record per payable item in the same transaction and show PROCESSING. The admission slot remains live until later fulfillment/refund settlement. Step 5 will execute those jobs.
+- SUCCEEDED: change PAYMENT_PENDING holds to ALLOCATED without another stock decrement. Insert one READY `fulfillment_jobs` record per payable item in the same transaction and show PROCESSING. The admission slot remains live until later fulfillment/refund settlement. Step 5 executes those jobs with unique local effect evidence.
 - FAILED: change eligible holds to RELEASED and replenish valid sellable units once; release the admission slot once and show PAYMENT_FAILED. Quarantined/nonexistent stock is not relisted.
 - UNKNOWN or delayed result: retain payment-owned stock and admission. Checkout expiry cannot touch it.
 
@@ -70,6 +70,6 @@ Order detail exposes financial `sourceVersion`, status, `pending`, `bankReferenc
 
 `PaymentCancellationRequested` carries the same immutable header. Billing can receive it before the original `PaymentRequested`: it creates/validates that identity and writes a REQUESTED tombstone atomically with its receipt. The scheduler prioritizes cancellation for that payment. Bank persists its own cancellation fence even if initialization has not arrived. Only an authoritative Bank no-charge result permits Commerce to release payment-owned stock; delayed original commands and direct Bank init/execute then remain no-charge.
 
-If charge won the race, success remains success. Billing marks the cancellation `REFUND_REQUIRED` and emits the known paid state. Commerce with a cancellation intent retains ALLOCATED stock/admission, shows CANCELLATION_PENDING and suppresses READY/DEFERRED fulfillment jobs. It does not claim a refund occurred. Refund obligations/execution and public cancellation eligibility arrive in steps 5/6. Test fixtures set the intent through controlled SQL; there is no public force-state/cancel shortcut in this milestone.
+If charge won the race, success remains success. Billing marks the cancellation `REFUND_REQUIRED` and emits the known paid state. Commerce with a cancellation intent retains ALLOCATED stock/admission, shows CANCELLATION_PENDING and suppresses READY/DEFERRED fulfillment jobs. It does not claim a refund occurred. Step 5 now executes the resulting obligations; public cancellation eligibility/actions arrive in step 6. Test fixtures set the intent through controlled SQL; there is no public force-state/cancel shortcut in this milestone.
 
 Operational rule: never reset payment keys, manually release unknown stock, delete tombstones or relabel UNKNOWN as FAILED to clear a backlog. Restore dependencies and let due work/expired leases reconcile the original operation. Exact reproduction and executed evidence are in [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md).

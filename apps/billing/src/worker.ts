@@ -10,6 +10,7 @@ import {
 } from '../../../packages/runtime/src/outbox.js';
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
 import { Payments } from './payments.js';
+import { Refunds } from './refunds.js';
 
 const money = z.string().regex(/^(0|[1-9][0-9]*)$/);
 const line = z
@@ -42,6 +43,8 @@ const catalogKinds = new Set([
   'ProductDeactivated',
   'InventoryAdjusted',
   'InventoryReconciled',
+  'ItemFulfilled',
+  'OrderStatusChanged',
 ]);
 @Injectable()
 export class BillingWorker implements OnModuleInit, OnModuleDestroy {
@@ -49,6 +52,7 @@ export class BillingWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     db: BillingDatabase,
     private readonly payments: Payments,
+    private readonly refunds: Refunds,
   ) {
     this.transport = new OutboxWorker(
       'billing',
@@ -64,6 +68,7 @@ export class BillingWorker implements OnModuleInit, OnModuleDestroy {
     return this.transport.stop();
   }
   private async handle(sql: Sql, event: Envelope) {
+    if (event.kind === 'RefundRequested') return this.refunds.accept(sql, event);
     if (event.kind === 'PaymentRequested' || event.kind === 'PaymentCancellationRequested')
       return this.payments.accept(sql, event, event.kind === 'PaymentCancellationRequested');
     if (catalogKinds.has(event.kind)) return;

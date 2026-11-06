@@ -4,6 +4,8 @@ Status: scenarios below are the target verification plan, not blanket passing re
 
 ## Core invariant scenarios
 
+Step-5 typed effects, aggregate/refund finality and recovery results are in [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md), including the storage-enforced first-start cutoff. Public cancellation/retry/review remains step 6.
+
 Step-4 executed financial identity, Bank deadline, payment-stock and no-charge fencing evidence is recorded in [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md). Public cancellation eligibility and actual refund/fulfillment execution remain later milestones.
 
 Step-3 executed admission, checkout, expiry and cross-owner preparation evidence is recorded in [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). The financial/fulfillment/cancellation cases below remain target scenarios until their milestones execute them.

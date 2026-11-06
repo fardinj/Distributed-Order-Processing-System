@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: Q01-Q21 choices are selected. Steps 1-4 are implemented as of 2026-11-06; see [step-4 evidence](PAYMENT_VERIFICATION.md) and the earlier milestone reports. Step 5 is next. The expanded scope is not bound by the original 5-7-day estimate.
+Status: Q01-Q21 choices are selected. Steps 1-5 are implemented as of 2026-11-06; see [step-5 evidence](FULFILLMENT_VERIFICATION.md) and earlier milestone reports. Step 6 is next. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -50,6 +50,8 @@ Completed: atomic entry/reacquisition/promotion, stable financial identities, Bi
 Exit: stock remains protected throughout pending/unknown payment; timeout-after-charge recovers success once; pending bank operations fail at their deadline; stale expiry/result messages do not corrupt inventory.
 
 ## 5. Typed fulfillment, aggregate and refund workflows
+
+Completed: distinct typed effects with transactional evidence/retries, immutable first-start cutoff, serialized aggregate completion/settlement, audited admin shortage disposition, captured-line/budget guards and idempotent Bank returns/log projections. COMPLETED requires all payable items succeeded; failed-line settlement is RESOLVED with a separate financial summary. Public recovery controls and adaptive cost/circuit policy remain step 6. See FULFILLMENT_VERIFICATION.md.
 
 - Implement separate local digital, subscription and physical modules in Commerce; lock parent order first, keep SQL transactions short, unique per-item evidence.
 - Extend fixed-day subscriptions once per item; consume paid physical allocation without another stock decrement; record unique shipment and admin shortage disposition.

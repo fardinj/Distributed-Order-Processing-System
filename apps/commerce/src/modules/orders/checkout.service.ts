@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   ServiceUnavailableException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
@@ -68,7 +69,7 @@ export class CheckoutService {
     );
     if (!orders[0]) throw new NotFoundException('Order not found');
     const items = await sql.query(
-      `SELECT id,product_id AS "productId",name,type,quantity,unit_price_minor::text AS "unitPriceMinor",
+      `SELECT id,product_id AS "productId",name,type,quantity,generation,attempt_count AS "attemptCount",unit_price_minor::text AS "unitPriceMinor",
       line_total_minor::text AS "lineTotalMinor",subscription_days AS "subscriptionDays",status,disposition
       FROM order_items WHERE order_id=$1::uuid ORDER BY id`,
       [id],
@@ -84,13 +85,25 @@ export class CheckoutService {
       [id],
     );
     const finance = await sql.query(
-      `SELECT revision,source_version AS "sourceVersion",status,pending,operation_key AS "operationKey",bank_reference AS "bankReference",bank_deadline_at AS "bankDeadlineAt",refunded_minor::text AS "refundedMinor",
+      `SELECT revision,source_version AS "sourceVersion",refund_source_version AS "refundSourceVersion",summary,status,pending,operation_key AS "operationKey",bank_reference AS "bankReference",bank_deadline_at AS "bankDeadlineAt",refunded_minor::text AS "refundedMinor",
       pending_refund_minor::text AS "pendingRefundMinor",updated_at AS "updatedAt" FROM order_financial_projections WHERE order_id=$1::uuid`,
       [id],
     );
     const events = await sql.query(
       `SELECT id,type,metadata,created_at AS "createdAt" FROM order_events WHERE order_id=$1::uuid
       ORDER BY created_at DESC,id DESC LIMIT 100`,
+      [id],
+    );
+    const grants = await sql.query(
+      'SELECT g.item_id AS "itemId",g.product_id AS "productId" FROM digital_grants g JOIN order_items i ON i.id=g.item_id WHERE i.order_id=$1',
+      [id],
+    );
+    const extensions = await sql.query(
+      'SELECT e.item_id AS "itemId",e.days,e.new_expires_at AS "expiresAt" FROM subscription_extensions e JOIN order_items i ON i.id=e.item_id WHERE i.order_id=$1',
+      [id],
+    );
+    const shipments = await sql.query(
+      'SELECT s.item_id AS "itemId",s.reference FROM shipments s JOIN order_items i ON i.id=s.item_id WHERE i.order_id=$1',
       [id],
     );
     return {
@@ -106,6 +119,7 @@ export class CheckoutService {
         pendingRefundMinor: '0',
       },
       events,
+      fulfillment: { digitalGrants: grants, subscriptionExtensions: extensions, shipments },
     };
   }
   get(id: string, customer: string, admin = false) {
@@ -224,6 +238,15 @@ export class CheckoutService {
       subscriptionDays: i.subscription_days,
     }));
     const total = lines.reduce((sum, line) => sum + BigInt(line.lineTotalMinor), 0n).toString();
+    // Server-derived prices can make a small input expand beyond the bounded event
+    // envelope. Reject before commit instead of stranding an accepted outbox row.
+    if (
+      Buffer.byteLength(JSON.stringify({ items: lines, totalMinor: total, changes }), 'utf8') >
+      250000
+    )
+      throw new PayloadTooLargeException(
+        'Computed checkout work exceeds 250000 bytes; reduce the basket size',
+      );
     await sql.query(
       `INSERT INTO checkout_revisions(order_id,version,snapshot,total_minor,confirmed) VALUES($1,$2,$3::jsonb,$4::numeric,$5) RETURNING order_id`,
       [id, version, JSON.stringify({ items: lines, changes }), total, confirmed],
@@ -595,8 +618,9 @@ export class CheckoutService {
         product_id: string;
         type: string;
         quantity: number;
+        amount: string;
       }>(
-        "SELECT id,product_id,type,quantity FROM order_items WHERE order_id=$1 AND status<>'CANCELLED' ORDER BY id FOR UPDATE",
+        "SELECT id,product_id,type,quantity,line_total_minor::text AS amount FROM order_items WHERE order_id=$1 AND status<>'CANCELLED' ORDER BY id FOR UPDATE",
         [id],
       );
       if (!items.length) throw new ConflictException('Basket is empty');
@@ -661,6 +685,7 @@ export class CheckoutService {
             revision: order.checkout_revision,
             operationKey: key,
             amountMinor: current.amount,
+            items: items.map((i) => ({ itemId: i.id, amountMinor: i.amount })),
             currency: 'IRR',
             correlationId,
           }),

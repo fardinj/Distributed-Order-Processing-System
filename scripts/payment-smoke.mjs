@@ -106,6 +106,14 @@ async function checkout(p, quantity = 1) {
   );
   assert.equal(r.status, 201, JSON.stringify(r.body));
   unpaid.push(r.body.id);
+  // Step-4 regression inspects allocated/undispatched work. Defer only this fixture's
+  // jobs so step-5 processors cannot cross the cancellation cutoff during the check.
+  for (const item of r.body.items)
+    await db(
+      'commerce',
+      "INSERT INTO fulfillment_simulation_rules(item_id,not_before) VALUES($1,clock_timestamp()+interval '1 hour')",
+      [item.id],
+    );
   return r.body;
 }
 const pay = (o, revision = o.checkoutRevision, bearer = a) =>
@@ -245,6 +253,7 @@ try {
       await readFile(`/verification/${phase.replace('recover', 'create')}.json`, 'utf8'),
     );
     products.push(state.productId);
+    unpaid.push(state.orderId);
     if (phase === 'bank-outage-recover')
       await until(
         async () =>
@@ -719,7 +728,8 @@ try {
     await cancelIntent(o);
     await due(o);
     await until(
-      async () => (await api(`/orders/${o.id}`)).body.status === 'CANCELLATION_PENDING',
+      async () =>
+        ['CANCELLATION_PENDING', 'CANCELLED'].includes((await api(`/orders/${o.id}`)).body.status),
       'charged cancellation remains pending',
     );
     await until(
@@ -728,7 +738,14 @@ try {
           await db('billing', 'SELECT status FROM payment_cancellations WHERE operation_key=$1', [
             `payment:${o.id}`,
           ])
-        )[0]?.status === 'REFUND_REQUIRED',
+        )[0]?.status &&
+        ['REFUND_REQUIRED', 'RESOLVED'].includes(
+          (
+            await db('billing', 'SELECT status FROM payment_cancellations WHERE operation_key=$1', [
+              `payment:${o.id}`,
+            ])
+          )[0].status,
+        ),
       'charged cancellation authoritative result',
     );
     await until(
@@ -741,13 +758,28 @@ try {
       'ready fulfillment suppressed',
     );
     assert.equal((await api(`/orders/${o.id}`)).body.financial.status, 'SUCCEEDED');
-    assert.equal((await api(`/orders/${o.id}`)).body.reservations[0].status, 'ALLOCATED');
+    const cancelled = (await api(`/orders/${o.id}`)).body;
+    if (cancelled.financial.summary === 'REFUNDED') assert.equal(cancelled.reservations.length, 0);
+    else assert.equal(cancelled.reservations[0].status, 'ALLOCATED');
     pass(
       'unknown cancellation releases only after bank fence; already charged cancellation preserves success/stock and suppresses ready work for later refund',
     );
   }
 } finally {
   for (const id of unpaid) await expire({ id });
+  if (phase === 'main' || phase.endsWith('-recover'))
+    for (const id of unpaid) {
+      await db(
+        'commerce',
+        'UPDATE fulfillment_simulation_rules SET not_before=clock_timestamp() WHERE item_id IN(SELECT id FROM order_items WHERE order_id=$1)',
+        [id],
+      );
+      await db(
+        'commerce',
+        "UPDATE fulfillment_jobs SET available_at=clock_timestamp() WHERE item_id IN(SELECT id FROM order_items WHERE order_id=$1) AND status IN ('READY','DEFERRED')",
+        [id],
+      );
+    }
   for (const id of products) {
     const current = await api(`/admin/products/${id}`, admin);
     if (current.status === 200 && current.body.active)

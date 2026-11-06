@@ -10,6 +10,7 @@ import {
 } from '../../../packages/runtime/src/outbox.js';
 import { serviceConfig } from '../../../packages/runtime/src/config.js';
 import { logRecord } from '../../../packages/runtime/src/logger.js';
+import { PaymentResults } from './modules/orders/payment-results.js';
 
 const ack = z
   .object({
@@ -29,6 +30,7 @@ export class CommerceWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     db: CommerceDatabase,
     private readonly checkout: CheckoutService,
+    private readonly payments: PaymentResults,
   ) {
     this.transport = new OutboxWorker(
       'commerce',
@@ -57,6 +59,7 @@ export class CommerceWorker implements OnModuleInit, OnModuleDestroy {
     await this.transport.stop();
   }
   private async handle(sql: Sql, event: Envelope) {
+    if (event.kind === 'PaymentStatusChanged') return this.payments.apply(sql, event);
     if (event.kind !== 'CheckoutPreparationAcknowledged')
       throw new InvalidMessage('UNSUPPORTED_BILLING_EVENT');
     const parsed = ack.safeParse(event.payload);

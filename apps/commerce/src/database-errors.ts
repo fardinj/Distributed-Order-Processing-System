@@ -19,7 +19,10 @@ export class DatabaseErrors implements ExceptionFilter {
       response.status(503).json(error.getResponse());
       return;
     }
-    const sqlCode = String(error.meta?.code ?? '');
+    const adapter = error.meta?.driverAdapterError as
+      | { cause?: { originalCode?: string } }
+      | undefined;
+    const sqlCode = String(error.meta?.code ?? adapter?.cause?.originalCode ?? '');
     let status = 500;
     let message = 'Database operation failed';
     if (error.code === 'P2002' || ['23505', '23514'].includes(sqlCode)) {

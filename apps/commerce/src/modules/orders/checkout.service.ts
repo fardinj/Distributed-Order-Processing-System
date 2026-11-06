@@ -19,6 +19,8 @@ interface Order {
   checkout_revision: number;
   checkout_expires_at: Date | null;
   preparation_version: number;
+  payment_operation_key: string | null;
+  payment_entry_revision: number | null;
 }
 interface Product {
   id: string;
@@ -58,7 +60,7 @@ export class CheckoutService {
 
   async detail(sql: Sql, id: string, customer: string, admin = false) {
     const orders = await sql.query(
-      `SELECT id,customer_id AS "customerId",status,currency,total_minor::text AS "totalMinor",
+      `SELECT id,customer_id AS "customerId",status,currency,total_minor::text AS "totalMinor",payment_operation_key AS "paymentOperationKey",
       checkout_revision AS "checkoutRevision",checkout_expires_at AS "expiresAt",preparation_version AS "preparationVersion",
       preparation_version<checkout_revision AS "preparationPending",created_at AS "createdAt"
       FROM orders WHERE id=$1::uuid AND (customer_id=$2 OR $3)`,
@@ -82,7 +84,7 @@ export class CheckoutService {
       [id],
     );
     const finance = await sql.query(
-      `SELECT revision,source_version AS "sourceVersion",status,pending,refunded_minor::text AS "refundedMinor",
+      `SELECT revision,source_version AS "sourceVersion",status,pending,operation_key AS "operationKey",bank_reference AS "bankReference",bank_deadline_at AS "bankDeadlineAt",refunded_minor::text AS "refundedMinor",
       pending_refund_minor::text AS "pendingRefundMinor",updated_at AS "updatedAt" FROM order_financial_projections WHERE order_id=$1::uuid`,
       [id],
     );
@@ -374,7 +376,7 @@ export class CheckoutService {
   }
   private async lock(sql: Sql, id: string, customer?: string, skip = false) {
     const rows = await sql.query<Order>(
-      `SELECT id,customer_id,status,checkout_revision,checkout_expires_at,preparation_version FROM orders
+      `SELECT id,customer_id,status,checkout_revision,checkout_expires_at,preparation_version,payment_operation_key,payment_entry_revision FROM orders
       WHERE id=$1::uuid AND ($2::text IS NULL OR customer_id=$2) FOR UPDATE ${skip ? 'SKIP LOCKED' : ''}`,
       [id, customer ?? null],
     );
@@ -441,113 +443,234 @@ export class CheckoutService {
       const order = (await this.lock(sql, id, customer))!;
       if (order.checkout_revision !== revision)
         throw new ConflictException('Checkout revision changed; reload order');
-      if (!editable.includes(order.status))
-        throw new ConflictException('Checkout is no longer editable');
-      await this.expireLocked(sql, order);
-      if (order.status !== 'CHECKOUT_EXPIRED') return; // No timer renewal for an active hold.
-      if (this.pressure())
-        throw new ServiceUnavailableException('Checkout reacquisition temporarily throttled');
-      await this.acquire(sql, id);
-      const items = await sql.query<Item>(
-        `SELECT id,product_id,name,type,quantity,unit_price_minor::text AS price,subscription_days
+      await this.refreshLocked(sql, order, correlationId);
+    });
+    return this.get(id, customer);
+  }
+  private async refreshLocked(sql: Sql, order: Order, correlationId: string) {
+    const id = order.id;
+    const revision = order.checkout_revision;
+    if (!editable.includes(order.status))
+      throw new ConflictException('Checkout is no longer editable');
+    await this.expireLocked(sql, order);
+    if (order.status !== 'CHECKOUT_EXPIRED') return; // No timer renewal for an active hold.
+    if (this.pressure())
+      throw new ServiceUnavailableException('Checkout reacquisition temporarily throttled');
+    await this.acquire(sql, id);
+    const items = await sql.query<Item>(
+      `SELECT id,product_id,name,type,quantity,unit_price_minor::text AS price,subscription_days
         FROM order_items WHERE order_id=$1 AND status<>'CANCELLED' ORDER BY id FOR UPDATE`,
+      [id],
+    );
+    const products = await this.products(
+      sql,
+      items.map((i) => i.product_id),
+    );
+    const next = revision + 1;
+    const expires = (
+      await sql.query<{ expires: Date }>("SELECT clock_timestamp()+interval '5 minutes' AS expires")
+    )[0]!.expires;
+    const payable: Item[] = [];
+    const changes: unknown[] = [];
+    for (const item of items) {
+      const product = products.get(item.product_id);
+      let quantity = product?.active ? item.quantity : 0;
+      if (quantity && item.type === 'PHYSICAL') {
+        const stock = (
+          await sql.query<{ available: bigint; requires_review: boolean }>(
+            'SELECT available,requires_review FROM inventory WHERE product_id=$1',
+            [item.product_id],
+          )
+        )[0]!;
+        quantity = stock.requires_review
+          ? 0
+          : Number(
+              BigInt(quantity) < BigInt(stock.available)
+                ? BigInt(quantity)
+                : BigInt(stock.available),
+            );
+      }
+      if (
+        quantity !== item.quantity ||
+        (quantity &&
+          product &&
+          (item.price !== product.price ||
+            item.name !== product.name ||
+            item.subscription_days !== product.subscription_days))
+      ) {
+        changes.push({
+          productId: item.product_id,
+          previousQuantity: item.quantity,
+          quantity,
+          previousUnitPriceMinor: item.price,
+          unitPriceMinor: product?.price ?? item.price,
+          reason: !product?.active
+            ? 'PRODUCT_UNAVAILABLE'
+            : quantity !== item.quantity
+              ? 'STOCK_CHANGED'
+              : 'CATALOG_CHANGED',
+        });
+      }
+      if (!quantity) {
+        await sql.query(
+          "UPDATE order_items SET status='CANCELLED',disposition='CANCEL' WHERE id=$1 RETURNING id",
+          [item.id],
+        );
+        continue;
+      }
+      item.quantity = quantity;
+      item.price = product!.price;
+      item.name = product!.name;
+      item.subscription_days = product!.subscription_days;
+      await sql.query(
+        `UPDATE order_items SET name=$2,quantity=$3,unit_price_minor=$4::numeric,line_total_minor=$5::numeric,subscription_days=$6 WHERE id=$1 RETURNING id`,
+        [
+          item.id,
+          item.name,
+          item.quantity,
+          item.price,
+          (BigInt(item.price) * BigInt(item.quantity)).toString(),
+          item.subscription_days,
+        ],
+      );
+      await this.reserve(sql, item, next, expires);
+      payable.push(item);
+    }
+    await sql.query(
+      `UPDATE orders SET checkout_revision=$2,status=$3,checkout_expires_at=$4,updated_at=clock_timestamp() WHERE id=$1 RETURNING id`,
+      [
+        id,
+        next,
+        changes.length || !payable.length ? 'BASKET_CHANGED' : 'CHECKOUT_RESERVED',
+        expires,
+      ],
+    );
+    await this.snapshot(
+      sql,
+      id,
+      next,
+      payable,
+      changes,
+      !changes.length && payable.length > 0,
+      correlationId,
+    );
+    if (!payable.length) await this.releaseSlot(sql, id);
+
+    order.checkout_revision = next;
+    order.status = changes.length || !payable.length ? 'BASKET_CHANGED' : 'CHECKOUT_RESERVED';
+  }
+  async enterPayment(id: string, customer: string, revision: number, correlationId: string) {
+    await this.db.store.transaction(async (sql) => {
+      const order = (await this.lock(sql, id, customer))!;
+      if (order.payment_operation_key) {
+        if (revision !== order.checkout_revision && revision !== order.payment_entry_revision)
+          throw new ConflictException('Checkout revision changed; reload order');
+        return;
+      }
+      if (order.checkout_revision !== revision)
+        throw new ConflictException('Checkout revision changed; reload order');
+      // Refresh and promotion share the parent lock and transaction. An expired changed
+      // basket is committed for confirmation; it never produces a payment command.
+      await this.refreshLocked(sql, order, correlationId);
+      if (order.status === 'BASKET_CHANGED') return;
+      const current = (
+        await sql.query<{ confirmed: boolean; amount: string }>(
+          `SELECT confirmed,total_minor::text AS amount FROM checkout_revisions WHERE order_id=$1 AND version=$2`,
+          [id, order.checkout_revision],
+        )
+      )[0];
+      if (!current?.confirmed)
+        throw new ConflictException('Confirm the current checkout basket first');
+      if (
+        (
+          await sql.query(
+            'SELECT 1 FROM orders WHERE id=$1 AND checkout_expires_at<=clock_timestamp()',
+            [id],
+          )
+        ).length
+      )
+        throw new ConflictException('Checkout expired; retry payment entry');
+      const items = await sql.query<{
+        id: string;
+        product_id: string;
+        type: string;
+        quantity: number;
+      }>(
+        "SELECT id,product_id,type,quantity FROM order_items WHERE order_id=$1 AND status<>'CANCELLED' ORDER BY id FOR UPDATE",
         [id],
       );
-      const products = await this.products(
+      if (!items.length) throw new ConflictException('Basket is empty');
+      await this.products(
         sql,
         items.map((i) => i.product_id),
       );
-      const next = revision + 1;
-      const expires = (
-        await sql.query<{ expires: Date }>(
-          "SELECT clock_timestamp()+interval '5 minutes' AS expires",
-        )
-      )[0]!.expires;
-      const payable: Item[] = [];
-      const changes: unknown[] = [];
-      for (const item of items) {
-        const product = products.get(item.product_id);
-        let quantity = product?.active ? item.quantity : 0;
-        if (quantity && item.type === 'PHYSICAL') {
-          const stock = (
-            await sql.query<{ available: bigint; requires_review: boolean }>(
-              'SELECT available,requires_review FROM inventory WHERE product_id=$1',
-              [item.product_id],
-            )
-          )[0]!;
-          quantity = stock.requires_review
-            ? 0
-            : Number(
-                BigInt(quantity) < BigInt(stock.available)
-                  ? BigInt(quantity)
-                  : BigInt(stock.available),
-              );
-        }
-        if (
-          quantity !== item.quantity ||
-          (quantity &&
-            product &&
-            (item.price !== product.price ||
-              item.name !== product.name ||
-              item.subscription_days !== product.subscription_days))
-        ) {
-          changes.push({
-            productId: item.product_id,
-            previousQuantity: item.quantity,
-            quantity,
-            previousUnitPriceMinor: item.price,
-            unitPriceMinor: product?.price ?? item.price,
-            reason: !product?.active
-              ? 'PRODUCT_UNAVAILABLE'
-              : quantity !== item.quantity
-                ? 'STOCK_CHANGED'
-                : 'CATALOG_CHANGED',
-          });
-        }
-        if (!quantity) {
+      if (
+        (
           await sql.query(
-            "UPDATE order_items SET status='CANCELLED',disposition='CANCEL' WHERE id=$1 RETURNING id",
-            [item.id],
-          );
-          continue;
-        }
-        item.quantity = quantity;
-        item.price = product!.price;
-        item.name = product!.name;
-        item.subscription_days = product!.subscription_days;
-        await sql.query(
-          `UPDATE order_items SET name=$2,quantity=$3,unit_price_minor=$4::numeric,line_total_minor=$5::numeric,subscription_days=$6 WHERE id=$1 RETURNING id`,
-          [
-            item.id,
-            item.name,
-            item.quantity,
-            item.price,
-            (BigInt(item.price) * BigInt(item.quantity)).toString(),
-            item.subscription_days,
-          ],
+            'SELECT 1 FROM inventory WHERE product_id=ANY($1::uuid[]) AND requires_review',
+            [items.map((i) => i.product_id)],
+          )
+        ).length
+      )
+        throw new ConflictException(
+          'Stock discrepancy must be resolved or checkout revised before payment',
         );
-        await this.reserve(sql, item, next, expires);
-        payable.push(item);
-      }
+      const holds = await sql.query<{ item_id: string; quantity: number; generation: number }>(
+        `SELECT r.item_id,r.quantity,r.generation FROM reservations r JOIN order_items i ON i.id=r.item_id
+        WHERE i.order_id=$1 AND r.status='ACTIVE' AND r.expires_at>clock_timestamp() ORDER BY r.id FOR UPDATE OF r`,
+        [id],
+      );
+      if (
+        items
+          .filter((i) => i.type === 'PHYSICAL')
+          .some(
+            (i) =>
+              !holds.some(
+                (h) =>
+                  h.item_id === i.id &&
+                  h.quantity === i.quantity &&
+                  h.generation === order.checkout_revision,
+              ),
+          )
+      )
+        throw new ConflictException('Current stock reservation is not payable');
+      const key = `payment:${id}`;
       await sql.query(
-        `UPDATE orders SET checkout_revision=$2,status=$3,checkout_expires_at=$4,updated_at=clock_timestamp() WHERE id=$1 RETURNING id`,
+        `UPDATE reservations SET status='PAYMENT_PENDING',expires_at=NULL WHERE status='ACTIVE'
+        AND item_id IN(SELECT id FROM order_items WHERE order_id=$1) RETURNING id`,
+        [id],
+      );
+      await sql.query(
+        `UPDATE orders SET status='PAYING',payment_operation_key=$2,payment_entry_revision=$3,updated_at=clock_timestamp() WHERE id=$1 RETURNING id`,
+        [id, key, revision],
+      );
+      await sql.query(
+        `UPDATE order_financial_projections SET status='PENDING',pending=true,operation_key=$2,updated_at=clock_timestamp() WHERE order_id=$1 RETURNING order_id`,
+        [id, key],
+      );
+      await sql.query(
+        `INSERT INTO outbox(id,kind,aggregate_id,generation,payload) VALUES($1,'PaymentRequested',$2,$3,$4::jsonb) RETURNING id`,
         [
+          randomUUID(),
           id,
-          next,
-          changes.length || !payable.length ? 'BASKET_CHANGED' : 'CHECKOUT_RESERVED',
-          expires,
+          order.checkout_revision,
+          JSON.stringify({
+            schemaVersion: 1,
+            orderId: id,
+            customerId: customer,
+            revision: order.checkout_revision,
+            operationKey: key,
+            amountMinor: current.amount,
+            currency: 'IRR',
+            correlationId,
+          }),
         ],
       );
-      await this.snapshot(
-        sql,
-        id,
-        next,
-        payable,
-        changes,
-        !changes.length && payable.length > 0,
+      await this.event(sql, id, 'PaymentRequested', {
+        operationKey: key,
+        revision: order.checkout_revision,
         correlationId,
-      );
-      if (!payable.length) await this.releaseSlot(sql, id);
+      });
     });
     return this.get(id, customer);
   }

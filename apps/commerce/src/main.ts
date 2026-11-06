@@ -11,6 +11,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { DatabaseErrors } from './database-errors.js';
 import { CheckoutService } from './modules/orders/checkout.service.js';
 import { CommerceWorker } from './worker.js';
+import { PaymentResults } from './modules/orders/payment-results.js';
 
 const config = serviceConfig('commerce');
 @Module({
@@ -20,6 +21,7 @@ const config = serviceConfig('commerce');
     CatalogService,
     CheckoutService,
     CommerceWorker,
+    PaymentResults,
     { provide: APP_FILTER, useClass: DatabaseErrors },
   ],
   controllers: [CatalogController, AdminCatalogController, OrdersController],

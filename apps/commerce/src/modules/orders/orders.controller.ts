@@ -42,6 +42,19 @@ export class OrdersController {
       correlationId,
     );
   }
+  @Post(':id/payment') pay(
+    @Param('id') id: string,
+    @CurrentUser() user: Principal,
+    @Body() body: unknown,
+    @Headers('x-request-id') correlationId: string,
+  ) {
+    return this.checkout.enterPayment(
+      parse(idSchema, id),
+      user.id,
+      parse(revisionSchema, body).expectedRevision,
+      correlationId,
+    );
+  }
   @Post(':id/checkout/confirm') confirm(
     @Param('id') id: string,
     @CurrentUser() user: Principal,

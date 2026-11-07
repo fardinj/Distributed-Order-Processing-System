@@ -5,20 +5,43 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { Prisma } from './generated/prisma/client.js';
 
-@Catch(Prisma.PrismaClientKnownRequestError, ServiceUnavailableException)
-export class DatabaseErrors implements ExceptionFilter {
-  catch(
-    error: Prisma.PrismaClientKnownRequestError | ServiceUnavailableException,
-    host: ArgumentsHost,
-  ) {
+@Catch()
+export class DatabaseErrors extends BaseExceptionFilter implements ExceptionFilter {
+  constructor(adapter: HttpAdapterHost) {
+    super(adapter.httpAdapter);
+  }
+  catch(error: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
+    // The PostgreSQL adapter can throw native DNS/socket errors before Prisma wraps them.
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    if (
+      [
+        'EAI_AGAIN',
+        'ENOTFOUND',
+        'ECONNREFUSED',
+        'ECONNRESET',
+        'ETIMEDOUT',
+        '08006',
+        '57P01',
+        '57P03',
+      ].includes(code)
+    ) {
+      response.setHeader('retry-after', '2');
+      response.status(503).json({
+        statusCode: 503,
+        message: 'Database temporarily unavailable; retry with the same idempotency key',
+      });
+      return;
+    }
     if (error instanceof ServiceUnavailableException) {
       response.setHeader('retry-after', '2');
       response.status(503).json(error.getResponse());
       return;
     }
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return super.catch(error, host);
     const adapter = error.meta?.driverAdapterError as
       | { cause?: { originalCode?: string } }
       | undefined;

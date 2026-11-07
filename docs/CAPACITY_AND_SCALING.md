@@ -75,6 +75,8 @@ Retry timers remain in SQL. Pause/defer unhealthy work with longer due times and
 
 ## Measurement and acceptance
 
+Step 8 [measurements](LOAD_RESULTS.md) recorded SQL admission reaching its 200 cap, explicit rejection of excess new orders and complete drain of every accepted load order. Combined caps with two Gateways were 6,080 MiB / 3.55 CPUs on a larger shared Docker host. This is finite container-capped evidence, not a dedicated 8-GiB/four-core throughput guarantee. The [submission report](SUBMISSION_VERIFICATION.md) lists remaining soak/host-pressure measurements.
+
 Warm up all services and record actual memory/CPU first. Ramp offered new orders gradually while keeping catalog mix/order size explicit; run a separate hot-product contention test. Report offered, admitted and rejected rates separately, request latency, fulfillment time, payment/refund lookup lag, memory, CPU, queues/outbox ages, DB waits and final invariant counts.
 
 Acceptance target: beyond sustainable capacity, rejections rise while memory/backlog remain controlled; accepted work keeps progressing and drains after load falls. Inject dependency outages and Redis failure. Reconcile every accepted order/charge/refund/effect after recovery. No specific sustainable RPS is claimed before measurement. The 15-minute bank timeout is simulated behavior, not an allowed request latency.

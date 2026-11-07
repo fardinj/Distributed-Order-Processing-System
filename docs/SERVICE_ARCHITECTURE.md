@@ -14,7 +14,7 @@ flowchart LR
     subgraph N[Private application network]
         G --> I[Identity]
         G --> CO[Commerce]
-        G --> B[Billing]
+        B[Billing]
         CO --> CDB[(Commerce PostgreSQL)]
         B --> BDB[(Billing PostgreSQL)]
         I --> IDB[(Identity PostgreSQL)]

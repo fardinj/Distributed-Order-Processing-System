@@ -1,6 +1,6 @@
 # TOPS — distributed order processing
 
-Docker-first NestJS/TypeScript workspace. Steps 1-7 provide isolated services, exact IRR, protected APIs, reliable messaging, payment/fulfillment/refund recovery, cancellation/review actions, Redis outage safeguards and a small Persian customer/admin UI. Load/submission evidence is next (step 8).
+Docker-first NestJS/TypeScript workspace. Steps 1-8 provide isolated services, exact IRR, protected APIs, reliable messaging, payment/fulfillment/refund recovery, cancellation/review actions, Redis outage safeguards, a small Persian UI and reproducible load/outage/backup evidence. [Submission results and limitations](docs/SUBMISSION_VERIFICATION.md) distinguish measured behavior from deployment work.
 
 ## Start or upgrade
 
@@ -121,8 +121,20 @@ docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
 
 This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16379`; credentials are still required. Normal traffic uses private service DNS. Local Compose secrets are files under a private directory, not an encrypted production vault; changing files alone does not rotate initialized DB/broker credentials.
 
-## Workflow and next step
+## Verification and workflow
 
 Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
 
-Next is [roadmap step 8](docs/ROADMAP.md): constrained-host load/failure measurement and submission evidence. The [UI guide](docs/UI_GUIDE.md) and [executed UI evidence](docs/UI_VERIFICATION.md) cover the implemented screens; root DESIGN.md records their tokens. No measured sustainable RPS is claimed.
+All [eight roadmap steps](docs/ROADMAP.md) have implementations and selected execution evidence. The [UI guide](docs/UI_GUIDE.md) and [UI evidence](docs/UI_VERIFICATION.md) cover the screens; root DESIGN.md records their tokens. [API reference](docs/API.md), [editable requests](api/tops.http), [workflow diagrams](docs/WORKFLOW_DIAGRAMS.md) and [operations/backup runbooks](docs/OPERATIONS.md) support review.
+
+Step 8 measured 800 new arrivals through two authenticated Gateways: 313 SQL-accepted orders completed once, and 487 excess requests received 503 without acceptance. [Load results](docs/LOAD_RESULTS.md) include latency/backlog/resource samples and the larger shared-host limitation; no dedicated-host sustainable RPS or production SLA is claimed.
+
+The following PowerShell runners deliberately interrupt local services or generate retained test history. Run after normal setup/provisioning in a development environment; they preserve original data and restore services:
+
+```powershell
+powershell -NoProfile -File scripts/verification/load.ps1
+powershell -NoProfile -File scripts/verification/failures.ps1
+powershell -NoProfile -File scripts/verification/durability.ps1
+```
+
+Private raw results and sensitive backups are under `.local/verification/`; isolated clean/restore volumes are retained, stopped, and separate from the original stack. See [executed evidence](docs/SUBMISSION_VERIFICATION.md) before interpreting these commands as availability or disaster-recovery guarantees. Production deployment, a dedicated-host soak and release/publication are separate next activities.

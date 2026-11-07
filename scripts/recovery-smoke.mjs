@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as pause } from 'node:timers/promises';
@@ -24,16 +24,25 @@ const [a, b, admin] = await Promise.all([
   token('fixture-admin', 'fixture_admin'),
 ]);
 async function api(path, bearer = a, method = 'GET', body, key) {
-  const r = await fetch(`http://gateway:3000/api${path}`, {
-    method,
-    headers: {
-      authorization: `Bearer ${bearer}`,
-      'content-type': 'application/json',
-      ...(key ? { 'idempotency-key': key } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(10000),
-  });
+  let r;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      r = await fetch(`http://gateway:3000/api${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${bearer}`,
+          'content-type': 'application/json',
+          ...(key ? { 'idempotency-key': key } : {}),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(10000),
+      });
+      break;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      await pause(250);
+    }
+  }
   return { status: r.status, mode: r.headers.get('x-rate-limit-mode'), body: await r.json() };
 }
 const clients = new Map();

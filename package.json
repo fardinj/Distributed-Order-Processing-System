@@ -16,8 +16,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
     "validate:schemas": "prisma validate --config apps/commerce/prisma.config.ts && prisma validate --config apps/billing/prisma.config.ts && prisma validate --config apps/bank-simulator/prisma.config.ts",
-    "format:check": "prettier --check apps packages scripts tests infrastructure compose.yaml compose.dev.yaml package.json tsconfig.json",
-    "format": "prettier --write apps packages scripts tests infrastructure compose.yaml compose.dev.yaml package.json tsconfig.json"
+    "format:check": "prettier --check apps packages scripts tests infrastructure compose.yaml compose.dev.yaml compose.verify.yaml package.json tsconfig.json",
+    "format": "prettier --write apps packages scripts tests infrastructure compose.yaml compose.dev.yaml compose.verify.yaml package.json tsconfig.json"
   },
   "dependencies": {
     "@nestjs/common": "12.3.3",

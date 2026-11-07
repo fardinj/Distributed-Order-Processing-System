@@ -1,0 +1,169 @@
+# Use a REST client supporting .http requests. Populate tokens locally; never commit them.
+@base = http://localhost:8080
+@customerToken = REPLACE_LOCALLY
+@adminToken = REPLACE_LOCALLY
+@productId = REPLACE_WITH_PRODUCT_UUID
+@orderId = REPLACE_WITH_ORDER_UUID
+@itemId = REPLACE_WITH_ITEM_UUID
+@dispositionId = REPLACE_WITH_DISPOSITION_UUID
+@reviewId = REPLACE_WITH_REVIEW_UUID
+@revision = 1
+@workflowVersion = 1
+@generation = 1
+@retryVersion = 1
+@productVersion = 1
+@inventoryVersion = 1
+# Replace keys for new operations; keep them unchanged for retries.
+@createKey = example-order-001
+@adminKey = example-product-001
+@stockKey = example-stock-001
+@cancelKey = example-cancel-001
+@retryKey = example-retry-001
+@shortageKey = example-shortage-001
+
+### Readiness
+GET {{base}}/health/ready
+
+### Browser OIDC settings
+GET {{base}}/auth/config
+
+### Current identity
+GET {{base}}/auth/me
+Authorization: Bearer {{customerToken}}
+
+### Catalog
+GET {{base}}/api/products?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Create a physical product (admin)
+POST {{base}}/api/admin/products
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: {{adminKey}}
+Content-Type: application/json
+
+{"name":"کالای نمونه","type":"PHYSICAL","priceMinor":"5000000","reason":"Initial catalog setup"}
+
+### Add physical stock; inventory has its own version
+POST {{base}}/api/admin/inventory/{{productId}}/adjustments
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: {{stockKey}}
+Content-Type: application/json
+
+{"expectedVersion":{{inventoryVersion}},"delta":5,"reason":"Warehouse goods received"}
+
+### Create checkout; save returned order ID and versions
+POST {{base}}/api/orders
+Authorization: Bearer {{customerToken}}
+Idempotency-Key: {{createKey}}
+Content-Type: application/json
+
+{"items":[{"productId":"{{productId}}","quantity":1}]}
+
+### Current-status replay: repeat exactly the create request above with the same key
+GET {{base}}/api/orders/{{orderId}}
+Authorization: Bearer {{customerToken}}
+
+### Own orders
+GET {{base}}/api/orders?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Reacquire an expired checkout; inspect BASKET_CHANGED before proceeding
+POST {{base}}/api/orders/{{orderId}}/checkout/refresh
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"expectedRevision":{{revision}}}
+
+### Explicitly confirm a changed basket using its new revision
+POST {{base}}/api/orders/{{orderId}}/checkout/confirm
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"expectedRevision":{{revision}}}
+
+### Enter payment with the current confirmed revision
+POST {{base}}/api/orders/{{orderId}}/payment
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"expectedRevision":{{revision}}}
+
+### Eligible cancellation before first fulfillment starts
+POST {{base}}/api/orders/{{orderId}}/cancel
+Authorization: Bearer {{customerToken}}
+Idempotency-Key: {{cancelKey}}
+Content-Type: application/json
+
+{"expectedVersion":{{workflowVersion}},"reason":"Customer requests cancellation"}
+
+### Eligible item retry; admin token for RECOVERY_COST review
+POST {{base}}/api/orders/{{orderId}}/items/{{itemId}}/retry
+Authorization: Bearer {{customerToken}}
+Idempotency-Key: {{retryKey}}
+Content-Type: application/json
+
+{"expectedGeneration":{{generation}},"expectedRetryVersion":{{retryVersion}},"reason":"Retry after transient recovery"}
+
+### Item attempts
+GET {{base}}/api/orders/{{orderId}}/items/{{itemId}}/attempts?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Refund obligations and confirmed amounts
+GET {{base}}/api/orders/{{orderId}}/refunds?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Refund logs
+GET {{base}}/api/orders/{{orderId}}/refunds/{{dispositionId}}/logs?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Admin orders and review queue
+GET {{base}}/api/admin/orders?limit=25
+Authorization: Bearer {{adminToken}}
+
+### Open review cases
+GET {{base}}/api/admin/manual-review?limit=25
+Authorization: Bearer {{adminToken}}
+
+### Inspect a review case
+GET {{base}}/api/admin/manual-review/{{reviewId}}
+Authorization: Bearer {{adminToken}}
+
+### Confirm permanent paid physical shortage only after investigating the count
+POST {{base}}/api/admin/orders/{{orderId}}/items/{{itemId}}/shortage
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: {{shortageKey}}
+Content-Type: application/json
+
+{"expectedGeneration":{{generation}},"reason":"Verified warehouse count cannot fulfill this line"}
+
+### Inspect inventory discrepancies
+GET {{base}}/api/admin/inventory/{{productId}}/discrepancies
+Authorization: Bearer {{adminToken}}
+
+### Product audit
+GET {{base}}/api/admin/products/{{productId}}/audit
+Authorization: Bearer {{adminToken}}
+
+### Update catalog values (use a fresh key for this operation)
+PATCH {{base}}/api/admin/products/{{productId}}
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: example-edit-001
+Content-Type: application/json
+
+{"expectedVersion":{{productVersion}},"priceMinor":"6000000","reason":"Catalog price revision"}
+
+### Reconcile a verified actual warehouse count
+POST {{base}}/api/admin/inventory/{{productId}}/reconcile
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: example-count-001
+Content-Type: application/json
+
+{"expectedVersion":{{inventoryVersion}},"countedOnHand":2,"reason":"Verified warehouse physical count"}
+
+### Deactivate a product while retaining evidence
+POST {{base}}/api/admin/products/{{productId}}/deactivate
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: example-deactivate-001
+Content-Type: application/json
+
+{"expectedVersion":{{productVersion}},"reason":"Product withdrawn from new sales"}

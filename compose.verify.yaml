@@ -1,0 +1,44 @@
+# Isolated verification stacks reuse built code, never original data volumes or identity output.
+services:
+  gateway: { image: tops-gateway:latest }
+  commerce: { image: tops-commerce:latest }
+  billing: { image: tops-billing:latest }
+  bank-simulator: { image: tops-bank-simulator:latest }
+  migrate: { image: tops-migrate:latest }
+  seed: { image: tops-seed:latest }
+  tools:
+    image: tops-tools:latest
+    volumes: ['${VERIFY_IDENTITY_STATE}/:/state:ro']
+  submission-checks: { image: tops-submission-checks:latest }
+  identity-init:
+    volumes: ['${VERIFY_IDENTITY_STATE}/:/state']
+  rabbitmq:
+    volumes:
+      ['${VERIFY_CREDENTIAL_ROOT}/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro']
+secrets:
+  postgres_admin_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/postgres_admin_password' }
+  commerce_db_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/commerce_db_password' }
+  commerce_migration_password:
+    { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/commerce_migration_password' }
+  billing_db_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/billing_db_password' }
+  billing_migration_password:
+    { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/billing_migration_password' }
+  bank_db_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/bank_db_password' }
+  bank_migration_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/bank_migration_password' }
+  identity_db_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/identity_db_password' }
+  identity_admin_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/identity_admin_password' }
+  rabbitmq_admin_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/rabbitmq_admin_password' }
+  commerce_rabbitmq_password:
+    { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/commerce_rabbitmq_password' }
+  billing_rabbitmq_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/billing_rabbitmq_password' }
+  redis_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/redis_password' }
+  commerce_service_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/commerce_service_password' }
+  billing_service_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/billing_service_password' }
+  fixture_customer_a_password:
+    { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/fixture_customer_a_password' }
+  fixture_customer_b_password:
+    { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/fixture_customer_b_password' }
+  fixture_admin_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/fixture_admin_password' }
+  user_customer_a_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/user_customer_a_password' }
+  user_customer_b_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/user_customer_b_password' }
+  user_admin_password: { file: '${VERIFY_CREDENTIAL_ROOT}/secrets/user_admin_password' }

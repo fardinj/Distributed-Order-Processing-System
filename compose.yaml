@@ -485,6 +485,46 @@ services:
     mem_limit: 1536m
     init: true
 
+  submission-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/verification/run.mjs]
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      BACKUP_RUN: ${BACKUP_RUN:-}
+    cpus: 0.50
+    mem_limit: 768m
+    secrets:
+      [
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        identity_admin_password,
+        postgres_admin_password,
+        identity_db_password,
+      ]
+
+  backup:
+    profiles: [operations]
+    image: postgres:17.11-bookworm
+    entrypoint: [bash, /opt/tops/backup.sh]
+    environment:
+      BACKUP_RUN: ${BACKUP_RUN:-}
+    volumes: ['./scripts/verification:/opt/tops:ro', './.local/verification:/verification']
+    secrets:
+      [
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        identity_db_password,
+        postgres_admin_password,
+      ]
+    networks: [private]
+    mem_limit: 256m
+    cpus: 0.10
+
 networks:
   edge:
   private:

@@ -1,6 +1,6 @@
 # Roadmap and implementation steps
 
-Status: Q01-Q21 choices are selected. Steps 1-7 are implemented as of 2026-11-06; see [UI evidence](UI_VERIFICATION.md) and earlier milestone reports. Step 8 (failure/load/submission evidence) is next. The expanded scope is not bound by the original 5-7-day estimate.
+Status: Q01-Q21 choices are selected. Steps 1-8 have implementations and selected execution evidence as of 2026-11-07; see [submission evidence and limitations](SUBMISSION_VERIFICATION.md), [UI evidence](UI_VERIFICATION.md) and earlier milestone reports. Dedicated-host sustained benchmarking and production deployment remain separate work. The expanded scope is not bound by the original 5-7-day estimate.
 
 Read ASSUMPTIONS.md for decisions, SYSTEM_DESIGN.md for transactions, SERVICE_ARCHITECTURE.md for ownership, SECURITY.md for controls, CAPACITY_AND_SCALING.md for host/admission limits and UI_SCOPE.md for UI scope. Record engineering defaults and measurements rather than reopening settled business choices.
 
@@ -85,6 +85,8 @@ Implemented: [usage guide](UI_GUIDE.md), [browser/API evidence](UI_VERIFICATION.
 Exit: reviewer can demonstrate core flows in Persian on desktop/mobile; direct unauthorized API calls still fail; very large monetary strings remain exact/readable.
 
 ## 8. Failure, load and submission evidence
+
+Implemented and executed: [submission matrix](SUBMISSION_VERIFICATION.md), [load results](LOAD_RESULTS.md), [API/reference collection](API.md), [workflow diagrams](WORKFLOW_DIAGRAMS.md) and [operations/backup runbooks](OPERATIONS.md). An 800-arrival/two-Gateway run completed all 313 SQL-accepted orders; all tested dependencies recovered; fresh-install and four-owner snapshot restore passed. Container hard caps fit the selected budget on a larger shared host. The matrix explicitly lists unexecuted scenarios and production limitations; the plan below is not a blanket pass claim.
 
 - Execute VERIFICATION.md with real PostgreSQL/RabbitMQ and deterministic boundary hooks; record commands, actual results and unresolved limitations.
 - Ramp offered load on constrained hardware. Report admitted/rejected throughput separately and prove admitted work progresses/drains without runaway memory/backlog. Include Redis/broker/database outages and cross-owner result delay.

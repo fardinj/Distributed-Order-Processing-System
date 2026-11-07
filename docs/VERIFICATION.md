@@ -1,5 +1,7 @@
 # Verification plan
 
+Latest selected execution evidence: [step 8 submission matrix](SUBMISSION_VERIFICATION.md), [load measurements](LOAD_RESULTS.md), [step 6 recovery checks](RECOVERY_VERIFICATION.md) and [step 7 UI checks](UI_VERIFICATION.md). This document remains the broader plan; consult those reports for actual commands, passing checks and unexecuted limitations.
+
 Status: scenarios below are the target verification plan, not blanket passing results. Executed step-1 evidence is in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md), and step-2 schema/auth/admin/concurrency evidence is in [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md). Use real owner databases and RabbitMQ for transaction/crash/coordination tests; mocks alone cannot prove locks or acknowledgments.
 
 ## Core invariant scenarios

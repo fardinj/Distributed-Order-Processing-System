@@ -138,7 +138,6 @@ bootstrap(GatewayModule, config, (app) => {
     changeOrigin: true,
     pathRewrite: { '^/api': '' },
     proxyTimeout: 5000,
-    timeout: 6000,
     on: {
       proxyReq(proxyReq, request) {
         for (const header of ['forwarded', 'x-user-id', 'x-user-role', 'x-forwarded-user'])
@@ -200,6 +199,11 @@ bootstrap(GatewayModule, config, (app) => {
         };
         response.once('finish', release);
         response.once('close', release);
+        // Bound this request without accumulating proxy-library timeout listeners on reused sockets.
+        const deadline = setTimeout(() => request.destroy(), 6000);
+        const clearDeadline = () => clearTimeout(deadline);
+        response.once('finish', clearDeadline);
+        response.once('close', clearDeadline);
         commerceProxy(request, response, next);
       } catch (error) {
         const status =

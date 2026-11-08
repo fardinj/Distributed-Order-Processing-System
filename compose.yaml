@@ -504,6 +504,7 @@ services:
         identity_admin_password,
         postgres_admin_password,
         identity_db_password,
+        billing_service_password,
       ]
 
   backup:

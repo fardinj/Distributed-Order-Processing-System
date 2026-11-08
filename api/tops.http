@@ -67,6 +67,18 @@ Authorization: Bearer {{customerToken}}
 GET {{base}}/api/orders?limit=25
 Authorization: Bearer {{customerToken}}
 
+### Filter own orders; createdTo is exclusive
+GET {{base}}/api/orders?limit=25&status=COMPLETED&createdFrom=2026-11-01T00:00:00Z&createdTo=2026-12-01T00:00:00Z
+Authorization: Bearer {{customerToken}}
+
+### Complete retained event history, oldest first; follow nextCursor
+GET {{base}}/api/orders/{{orderId}}/events?limit=25
+Authorization: Bearer {{customerToken}}
+
+### Aggregate operational metrics (Prometheus text, admin only)
+GET {{base}}/api/admin/metrics
+Authorization: Bearer {{adminToken}}
+
 ### Reacquire an expired checkout; inspect BASKET_CHANGED before proceeding
 POST {{base}}/api/orders/{{orderId}}/checkout/refresh
 Authorization: Bearer {{customerToken}}

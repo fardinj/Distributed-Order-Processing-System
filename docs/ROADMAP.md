@@ -86,6 +86,8 @@ Exit: reviewer can demonstrate core flows in Persian on desktop/mobile; direct u
 
 ## 8. Failure, load and submission evidence
 
+The 2026-11-08 [follow-up](SUBMISSION_GAPS_VERIFICATION.md) addresses the requirement review: deterministic before/after-commit worker kills, order filters, complete event history and owner-local metrics. Production deployment and dedicated-host sustained capacity remain outside the executed evidence.
+
 Implemented and executed: [submission matrix](SUBMISSION_VERIFICATION.md), [load results](LOAD_RESULTS.md), [API/reference collection](API.md), [workflow diagrams](WORKFLOW_DIAGRAMS.md) and [operations/backup runbooks](OPERATIONS.md). An 800-arrival/two-Gateway run completed all 313 SQL-accepted orders; all tested dependencies recovered; fresh-install and four-owner snapshot restore passed. Container hard caps fit the selected budget on a larger shared host. The matrix explicitly lists unexecuted scenarios and production limitations; the plan below is not a blanket pass claim.
 
 - Execute VERIFICATION.md with real PostgreSQL/RabbitMQ and deterministic boundary hooks; record commands, actual results and unresolved limitations.

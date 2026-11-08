@@ -168,6 +168,7 @@ model Reservation {
 }
 
 model OrderEvent {
+  sequence  BigInt        @default(autoincrement())
   id        String        @id @db.Uuid
   orderId   String        @map("order_id") @db.Uuid
   type      String        @db.VarChar(80)
@@ -176,6 +177,7 @@ model OrderEvent {
   order     CustomerOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([orderId, createdAt, id])
+  @@index([orderId, sequence], map: "order_events_order_sequence_idx")
   @@map("order_events")
 }
 

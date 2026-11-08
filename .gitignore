@@ -12,3 +12,8 @@ coverage/
 core
 core.*
 .DS_Store
+.impeccable/
+# Local assignment inputs, not part of the implementation.
+/Backend_System_Design_Hiring_Task_-_Order_Processing.md
+/Backend_System_Design_Hiring_Task_-_Order_Processing.pdf
+/temp.txt

@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: steps 1-5 implement private ownership, identity/admin/checkout, reliable messaging, financial recovery, local typed fulfillment and whole-line returns. Commerce owns effects and resolution; Billing owns captured/refundable budgets; Bank owns returns. See [fulfillment contracts](FULFILLMENT_AND_REFUNDS.md) and [evidence](FULFILLMENT_VERIFICATION.md). Public controls/Redis are next.
+Status: the selected services, customer/admin APIs, cancellation/retry/review, Redis features and Persian UI are implemented. Commerce owns effects and resolution; Billing owns captured/refundable budgets; Bank owns returns. See [submission evidence](SUBMISSION_VERIFICATION.md) and [follow-up verification](SUBMISSION_GAPS_VERIFICATION.md) for actual checks and limitations. Gateway routes business requests to Commerce; financial commands/results cross owners through RabbitMQ.
 
 ## Two different gateways
 

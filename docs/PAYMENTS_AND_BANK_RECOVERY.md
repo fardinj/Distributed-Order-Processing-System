@@ -1,6 +1,6 @@
 # Payment entry and bank recovery
 
-Step 4 implements payment entry, bank execution/reconciliation, terminal stock transitions and durable fulfillment dispatch. Typed fulfillment/refund execution is implemented in [step 5](FULFILLMENT_AND_REFUNDS.md). Public cancellation/retry actions are step 6; the Persian UI remains step 7. The cancellation protocol described below is an internal foundation, not a finished customer cancellation API.
+Payment entry, bank execution/reconciliation, terminal stock transitions and durable fulfillment dispatch are implemented. Typed fulfillment/refund execution is described in [fulfillment contracts](FULFILLMENT_AND_REFUNDS.md). Public cancellation/retry actions are implemented in [recovery contracts](CANCELLATION_RECOVERY_AND_REDIS.md), with a [Persian UI](UI_GUIDE.md). The internal cancellation protocol below supports those public actions.
 
 ## Customer contract
 

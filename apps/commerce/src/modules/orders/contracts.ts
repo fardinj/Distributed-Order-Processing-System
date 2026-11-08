@@ -19,11 +19,38 @@ export const createOrderSchema = z
 export const revisionSchema = z
   .object({ expectedRevision: z.int().positive().max(2147483646) })
   .strict();
+export const orderPageFields = {
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.uuid().optional(),
+  status: z
+    .enum([
+      'CHECKOUT_RESERVED',
+      'CHECKOUT_EXPIRED',
+      'BASKET_CHANGED',
+      'PENDING_PAYMENT',
+      'PAYING',
+      'PAYMENT_REVIEW',
+      'PROCESSING',
+      'ATTENTION_REQUIRED',
+      'MANUAL_REVIEW',
+      'CANCELLATION_PENDING',
+      'PAYMENT_FAILED',
+      'COMPLETED',
+      'CANCELLED',
+      'RESOLVED',
+    ])
+    .optional(),
+  createdFrom: z.iso.datetime({ offset: true }).optional(),
+  createdTo: z.iso.datetime({ offset: true }).optional(),
+};
+export const validOrderRange = (p: { createdFrom?: string; createdTo?: string }) =>
+  !p.createdFrom || !p.createdTo || Date.parse(p.createdFrom) < Date.parse(p.createdTo);
 export const orderListSchema = z
-  .object({
-    limit: z.coerce.number().int().min(1).max(100).default(25),
-    cursor: z.uuid().optional(),
-  })
+  .object(orderPageFields)
+  .strict()
+  .refine(validOrderRange, { message: 'createdFrom must precede createdTo' });
+export const eventPageSchema = z
+  .object({ limit: orderPageFields.limit, cursor: orderPageFields.cursor })
   .strict();
 export interface Line {
   productId: string;

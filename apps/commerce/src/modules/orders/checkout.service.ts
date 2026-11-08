@@ -11,7 +11,8 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { CommerceDatabase } from '../../database.js';
 import type { Sql } from '../../../../../packages/runtime/src/outbox.js';
 import { fingerprint } from '../../../../../packages/runtime/src/validation.js';
-import { canonicalLines, type Line } from './contracts.js';
+import { canonicalLines, type Line, orderListSchema, eventPageSchema } from './contracts.js';
+import type { z } from 'zod';
 
 interface Order {
   id: string;
@@ -93,7 +94,7 @@ export class CheckoutService {
     );
     const events = await sql.query(
       `SELECT id,type,metadata,created_at AS "createdAt" FROM order_events WHERE order_id=$1::uuid
-      ORDER BY created_at DESC,id DESC LIMIT 100`,
+      ORDER BY sequence DESC LIMIT 100`,
       [id],
     );
     const grants = await sql.query(
@@ -131,7 +132,45 @@ export class CheckoutService {
       return this.detail(sql, id, customer, admin);
     });
   }
-  async list(customer: string, limit: number, cursor?: string) {
+  async events(
+    id: string,
+    customer: string,
+    admin: boolean,
+    page: z.infer<typeof eventPageSchema>,
+  ) {
+    return this.db.store.transaction(async (sql) => {
+      if (
+        !(
+          await sql.query('SELECT id FROM orders WHERE id=$1 AND (customer_id=$2 OR $3)', [
+            id,
+            customer,
+            admin,
+          ])
+        ).length
+      )
+        throw new NotFoundException('Order not found');
+      if (
+        page.cursor &&
+        !(
+          await sql.query('SELECT id FROM order_events WHERE id=$1 AND order_id=$2', [
+            page.cursor,
+            id,
+          ])
+        ).length
+      )
+        throw new BadRequestException('Invalid event cursor');
+      const rows = await sql.query<{ id: string }>(
+        `SELECT id,type,metadata,created_at AS "createdAt",sequence::text AS sequence FROM order_events WHERE order_id=$1 AND ($2::uuid IS NULL OR sequence>(SELECT sequence FROM order_events WHERE id=$2 AND order_id=$1)) ORDER BY sequence LIMIT $3`,
+        [id, page.cursor ?? null, page.limit + 1],
+      );
+      return {
+        items: rows.slice(0, page.limit),
+        nextCursor: rows.length > page.limit ? rows[page.limit - 1]!.id : null,
+      };
+    });
+  }
+  async list(customer: string, input: z.infer<typeof orderListSchema>) {
+    const { limit, cursor, status, createdFrom, createdTo } = input;
     return this.db.store.transaction(async (sql) => {
       await sql.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       let after: { created_at: Date; id: string } | undefined;
@@ -149,8 +188,16 @@ export class CheckoutService {
         checkout_expires_at AS "expiresAt",preparation_version AS "preparationVersion",created_at AS "createdAt"
         FROM orders WHERE customer_id=$1 AND ($2::uuid IS NULL OR (created_at,id)>
           (SELECT created_at,id FROM orders WHERE id=$2::uuid AND customer_id=$1))
-        ORDER BY created_at,id LIMIT $3`,
-        [customer, after?.id ?? null, limit + 1],
+        AND ($4::text IS NULL OR status=$4) AND ($5::timestamptz IS NULL OR created_at>=$5::timestamptz)
+        AND ($6::timestamptz IS NULL OR created_at<$6::timestamptz) ORDER BY created_at,id LIMIT $3`,
+        [
+          customer,
+          after?.id ?? null,
+          limit + 1,
+          status ?? null,
+          createdFrom ?? null,
+          createdTo ?? null,
+        ],
       );
       return {
         items: rows.slice(0, limit),

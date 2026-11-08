@@ -6,7 +6,12 @@ import {
 } from '../../../../../packages/runtime/src/security.js';
 import { parse, requestKey } from '../../../../../packages/runtime/src/validation.js';
 import { idSchema } from '../catalog/contracts.js';
-import { createOrderSchema, revisionSchema, orderListSchema } from './contracts.js';
+import {
+  createOrderSchema,
+  revisionSchema,
+  orderListSchema,
+  eventPageSchema,
+} from './contracts.js';
 import { CheckoutService } from './checkout.service.js';
 
 @Controller('orders')
@@ -24,7 +29,19 @@ export class OrdersController {
   }
   @Get() list(@CurrentUser() user: Principal, @Query() query: unknown) {
     const input = parse(orderListSchema, query);
-    return this.checkout.list(user.id, input.limit, input.cursor);
+    return this.checkout.list(user.id, input);
+  }
+  @Get(':id/events') events(
+    @Param('id') id: string,
+    @CurrentUser() user: Principal,
+    @Query() query: unknown,
+  ) {
+    return this.checkout.events(
+      parse(idSchema, id),
+      user.id,
+      user.roles.includes('admin'),
+      parse(eventPageSchema, query),
+    );
   }
   @Get(':id') get(@Param('id') id: string, @CurrentUser() user: Principal) {
     return this.checkout.get(parse(idSchema, id), user.id, user.roles.includes('admin'));

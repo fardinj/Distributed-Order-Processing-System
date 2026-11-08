@@ -80,6 +80,8 @@ export const statuses = {
 };
 export const statusText = (value) => statuses[value] ?? value ?? '—';
 const events = {
+  ItemProcessingStarted: 'پردازش قلم سفارش آغاز شد',
+  ShipmentCreated: 'مرسوله ایجاد شد',
   CheckoutReserved: 'سبد و رزرو اولیه ثبت شد',
   CheckoutRevised: 'نسخه سبد به‌روز شد',
   CheckoutExpired: 'رزرو موقت منقضی شد',

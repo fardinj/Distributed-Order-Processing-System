@@ -8,6 +8,7 @@ import { fulfillDigital } from './processors/digital.js';
 import { fulfillSubscription } from './processors/subscription.js';
 import { fulfillPhysical } from './processors/physical.js';
 import { Auxiliary } from '../../../../../packages/runtime/src/auxiliary.js';
+import { verificationBarrier } from '../../verification-barrier.js';
 export const workFields =
   'i.id,i.order_id,i.product_id,i.type,i.quantity,i.subscription_days,i.line_total_minor::text AS amount,i.status,i.disposition,i.generation,i.attempt_count,o.customer_id,o.checkout_revision,o.payment_operation_key,o.cancellation_requested';
 @Injectable()
@@ -41,6 +42,7 @@ export class Fulfillment implements OnModuleInit, OnModuleDestroy {
     ]);
   }
   private async process(id: string, orderId: string) {
+    let executed = false;
     await this.db.store.transaction(async (sql) => {
       if (
         !(await sql.query('SELECT id FROM orders WHERE id=$1 FOR UPDATE SKIP LOCKED', [orderId]))
@@ -191,6 +193,10 @@ export class Fulfillment implements OnModuleInit, OnModuleDestroy {
         "UPDATE order_items SET status='PROCESSING',attempt_count=attempt_count+1,retry_version=retry_version+1,recovery_started_at=coalesce(recovery_started_at,clock_timestamp()),infrastructure_failures=0 WHERE id=$1 RETURNING id",
         [id],
       );
+      await this.settlement.history(sql, orderId, 'ItemProcessingStarted', {
+        itemId: id,
+        attempt: item.attempt_count,
+      });
       await sql.query('SAVEPOINT local_effect');
       let outcome = 'SUCCEEDED';
       let reason = 'FULFILLED';
@@ -198,6 +204,7 @@ export class Fulfillment implements OnModuleInit, OnModuleDestroy {
         if (item.type === 'DIGITAL') await fulfillDigital(sql, item);
         else if (item.type === 'SUBSCRIPTION') await fulfillSubscription(sql, item);
         else await fulfillPhysical(sql, item);
+        await verificationBarrier(id, 'after_effect');
         if (rule && item.attempt_count <= rule.fail_until_attempt && rule.outcome !== 'SUCCESS')
           throw new Error(rule.outcome);
         await sql.query(
@@ -264,7 +271,9 @@ export class Fulfillment implements OnModuleInit, OnModuleDestroy {
         { itemId: id, attempt: item.attempt_count, reason },
       );
       await this.settlement.aggregate(sql, orderId);
+      executed = true;
     });
+    if (executed) await verificationBarrier(id, 'after_commit');
   }
   private async cancellations() {
     const orders = await this.db.store.query<{

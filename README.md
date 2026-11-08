@@ -1,10 +1,25 @@
-# TOPS — distributed order processing
+# Distributed Order Processing System
 
-Docker-first NestJS/TypeScript workspace. Steps 1-8 provide isolated services, exact IRR, protected APIs, reliable messaging, payment/fulfillment/refund recovery, cancellation/review actions, Redis outage safeguards, a small Persian UI and reproducible load/outage/backup evidence. [Submission results and limitations](docs/SUBMISSION_VERIFICATION.md) distinguish measured behavior from deployment work.
+This project accepts orders and processes their items in the background. An order can contain digital products, subscriptions and physical products. Each type has its own processor.
 
-## Start or upgrade
+The main goal is to keep orders, stock and payments correct when requests are repeated, workers stop or a dependency is unavailable. There is also a small Persian UI so the customer and admin flows are easy to try.
 
-Docker with Compose is sufficient; host Node/npm is optional. Run from this directory:
+## What is included
+
+- Product management and physical inventory with an audit trail.
+- Idempotent checkout, a five-minute stock reservation and confirmation when the basket changes.
+- A bank simulator with successful, failed and unknown payment outcomes.
+- Separate digital, subscription and physical fulfillment modules.
+- Item retries, manual review, cancellation and full or partial refunds.
+- Order status/date filters, paginated event history and refund logs.
+- Authentication, customer ownership checks and admin-only actions.
+- Docker Compose, migrations, seeds and checks using the real databases and broker.
+
+The stack is **Node.js, TypeScript, NestJS, Prisma, PostgreSQL, RabbitMQ and Redis**. Keycloak handles login and service identities. The repository uses npm workspaces and a shared lockfile.
+
+## Run locally
+
+You need Docker with Compose. A local Node installation is optional. Run these commands from the repository root:
 
 ```sh
 docker compose --profile setup run --rm --no-deps setup
@@ -12,8 +27,82 @@ docker compose up -d --wait postgres rabbitmq redis identity
 docker compose --profile bootstrap run --rm --build migrate
 docker compose --profile bootstrap run --rm identity-init --fixtures
 docker compose --profile bootstrap run --rm --build seed
-docker compose up --build --wait --wait-timeout 360
-docker compose --profile tools run --rm --build tools
+docker compose up -d --build --wait --wait-timeout 360
+```
+
+Open **http://localhost:8080/**. Readiness is at http://localhost:8080/health/ready.
+
+Setup creates `.env` and random credentials under `.local/`. Rerunning setup preserves existing credentials, and migrations/seeds preserve existing data. Keep `.local/` and the Docker volumes when restarting. The storage monitor needs three healthy samples before accepting new orders, which can take about 15 seconds after startup.
+
+For later updates, apply migrations before starting the updated application images. Changing a credential file does not rotate a password already stored in PostgreSQL, RabbitMQ or Keycloak.
+
+## Try the flows
+
+The `--fixtures` option creates these local demo accounts:
+
+| User | Username | Local password file |
+|---|---|---|
+| Customer A | `demo-customer-a` | `.local/secrets/user_customer_a_password` |
+| Customer B | `demo-customer-b` | `.local/secrets/user_customer_b_password` |
+| Admin | `demo-admin` | `.local/secrets/user_admin_password` |
+
+Read the passwords from your own files. Admin login requires TOTP enrollment when first requested. These are development accounts, not production defaults.
+
+Start by creating products and adding physical stock as admin. Then sign in as a customer, create a checkout, confirm payment and inspect the item results. Use separate browser profiles for the admin and customer if you want to switch between them. The [UI guide](docs/UI_GUIDE.md) covers the remaining flows.
+
+The bank and shipments are simulated. Normal payments succeed; failure scenarios use private test fixtures rather than customer-controlled success/failure flags.
+
+## How it is split
+
+```text
+apps/gateway/          Client entry point and Persian UI
+apps/commerce/         Catalog, inventory, orders and typed fulfillment
+apps/billing/          Payments, refunds and financial reconciliation
+apps/bank-simulator/   Simulated bank and its own durable ledger
+packages/runtime/     Shared technical code, without shared domain models
+infrastructure/       Dockerfiles and infrastructure configuration
+scripts/              Setup, migrations, seeds and verification runners
+tests/                Unit and contract checks
+docs/                 Decisions, design, API contracts and test results
+```
+
+Only the Gateway is exposed, on loopback port 8080. Commerce, Billing, Bank and Identity have separate databases and credentials on one private network. The product processors stay inside Commerce so their effects, stock changes and order state can commit in one SQL transaction.
+
+PostgreSQL is the source of truth. RabbitMQ carries commands/results through owner-local outbox/inbox tables. Redis provides cache, scheduler overlap locks and rate limiting. If Redis fails, the API uses weaker per-instance rate limits while database safeguards and authentication remain active.
+
+Money is whole **IRR**, carried as decimal strings and calculated with BigInt/unconstrained SQL NUMERIC. Prices never use floating-point arithmetic. Customer identity comes from the access token, and payment starts through an explicit checkout action.
+
+## Important docs
+
+| Document | What to read it for |
+|---|---|
+| [Assumptions](docs/ASSUMPTIONS.md) | The business rules we selected, including reservations, refunds, retries and capacity |
+| [Decision history](docs/OPEN_QUESTIONS.md) | Options we considered and why we picked them |
+| [System design](docs/SYSTEM_DESIGN.md) | Transactions, locking, states and the important SQL/pseudocode |
+| [Service architecture](docs/SERVICE_ARCHITECTURE.md) | Ownership and communication boundaries |
+| [Workflow diagrams](docs/WORKFLOW_DIAGRAMS.md) | Checkout, payment, fulfillment and refund sequences |
+| [API reference](docs/API.md) / [HTTP requests](api/tops.http) | Routes, request examples, authentication and error handling |
+| [Security](docs/SECURITY.md) | API permissions, identities and infrastructure controls |
+| [Operations](docs/OPERATIONS.md) | Unknown payments, retries, quarantine, metrics and backup/restore |
+| [Capacity and scaling](docs/CAPACITY_AND_SCALING.md) | Resource limits, admission control and the scale-up path |
+| [Verification results](docs/SUBMISSION_VERIFICATION.md) | What was actually tested and what remains unproven |
+| [Follow-up verification](docs/SUBMISSION_GAPS_VERIFICATION.md) | Forced worker crashes, filters, history and metrics |
+| [Load results](docs/LOAD_RESULTS.md) | Workload, accepted/rejected requests, latency and resource samples |
+| [Roadmap](docs/ROADMAP.md) | Implementation steps and their evidence |
+
+## Checks
+
+For the build, unit tests, schema validation and formatting:
+
+```sh
+docker compose --profile tools run --rm --build tools npm test
+docker compose --profile tools run --rm tools npm run validate:schemas
+docker compose --profile tools run --rm tools npm run format:check
+```
+
+The integration suites run against the live Compose stack:
+
+```sh
 docker compose --profile tools run --rm --build foundation-checks
 docker compose --profile tools run --rm --build checkout-checks
 docker compose --profile tools run --rm --build payment-checks
@@ -22,119 +111,20 @@ docker compose --profile tools run --rm --build recovery-checks
 docker compose --profile tools run --rm --build ui-checks
 ```
 
-Setup creates `.env`, random passwords and hashed broker definitions in gitignored `.local/`. It preserves existing credentials; rerun when new secret names are introduced. Start infrastructure and apply migrations before domain apps: readiness now checks that each owner's schema exists.
+These checks create identifiable fixture data and retain order/audit history. They are for a development environment. The PowerShell runners under `scripts/verification/` also test load, dependency outages, forced worker crashes and isolated backup/restore; some deliberately interrupt services. Read the [runbook](docs/OPERATIONS.md) before running them.
 
-New checkout admission requires fresh healthy storage observations. Normal Compose starts `storage-monitor`; three good five-second samples open admission. Failure/staleness stops new admission while accepted workflows retain state. See [recovery/Redis contracts](docs/CANCELLATION_RECOVERY_AND_REDIS.md) and [executed evidence](docs/RECOVERY_VERIFICATION.md).
+With Node 24.15 locally, you can also use `npm ci` and `npm test`.
 
-Migration/seed commands are additive and idempotent. `identity-init --fixtures` explicitly installs local demo users and separate machine test clients; omit that flag for nonfixture provisioning. It prints no password/token. Human demo admin requires TOTP setup. Never reset data or delete volumes to make a check pass.
+## Current limits
 
-Open the [Persian UI](http://localhost:8080/), [JSON status](http://localhost:8080/status), [readiness](http://localhost:8080/health/ready) or [OIDC discovery](http://localhost:8080/identity/realms/tops/.well-known/openid-configuration). [UI_GUIDE.md](docs/UI_GUIDE.md) explains demo accounts, generated password file locations, MFA and the walkthrough. APIs require bearer tokens. Change port/public origin together and rerun identity provisioning for the exact callback/logout origins.
+The planned server budget is **8 GB RAM and four CPU cores**. The nine steady services have combined limits of 5,888 MiB and 3.35 CPUs. Build and test tools have separate budgets.
 
-## Find the code
+The measured load run sent 800 new requests through two Gateways. All 313 accepted orders completed once; the other 487 requests received 503 without acceptance. That run used capped containers on a larger shared host. It does not establish sustained capacity on a dedicated four-core machine.
 
-```text
-apps/
-  gateway/src/           # JWT verification and allowlisted client proxies
-  commerce/
-    src/modules/catalog # Products, audited/versioned inventory administration
-    src/modules/orders  # Admission, checkout, payment entry and protected reads
-    src/modules/fulfillment # Typed effects, aggregates, refunds and shortage action
-    prisma/             # Owned schema and versioned custom SQL migrations
-  billing/              # Financial ledger, preparation and leased bank recovery
-  bank-simulator/prisma/# Private charge execution, deadline and no-charge fencing
-packages/runtime/src/   # Bootstrap, health, JWT/service identity, exact IRR helpers
-infrastructure/
-  docker/Dockerfile     # Multistage build; selected app only in runtime image
-  postgres/init/        # Isolated runtime/migration roles and databases
-  rabbitmq/             # Broker config; definitions generated locally
-  redis/                # Authenticated auxiliary store
-  keycloak/             # Provider bootstrap, realm and health
-scripts/                # Setup, migrate, identity provision, seed, smoke checks
-tests/                  # Readiness, signed JWT, exact money and fingerprint checks
-docs/                   # Decisions, design, API, workflow and verification
-compose.yaml            # Normal stack and opt-in bootstrap/tool profiles
-compose.dev.yaml        # Optional loopback-only diagnostic ports
-```
+This is a local simulator deployment. It does not include real payment/shipping providers, automatic failover, off-host backup storage or a production TLS setup. Operational metrics are available through protected endpoints; a metrics collector, dashboards and distributed tracing are not bundled.
 
-Root npm workspaces share exact dependency versions and `package-lock.json`; apps own their source/schema. Shared runtime contains technical utilities, not shared order/payment models. Each app has its own README. Generated clients are ignored and rebuilt inside images.
+Secrets, generated files, raw verification results and the original hiring brief stay local and are ignored by Git. The design and decisions needed to review the implementation are in `docs/`.
 
-## Services and limits
+## Git workflow
 
-| Service | Internal address | Memory cap | CPU ceiling |
-|---|---|---:|---:|
-| Gateway | gateway:3000 | 192 MiB | 0.20 |
-| Commerce | commerce:3000 | 640 MiB | 0.60 |
-| Billing | billing:3000 | 384 MiB | 0.30 |
-| Bank simulator | bank-simulator:3000 | 192 MiB | 0.10 |
-| PostgreSQL | postgres:5432 | 1536 MiB | 1.00 |
-| RabbitMQ | rabbitmq:5672 | 640 MiB | 0.40 |
-| Redis | redis:6379 | 192 MiB | 0.10 |
-| Identity | identity:8080, health :9000 | 2048 MiB | 0.60 |
-| **Steady total** | | **5824 MiB** | **3.30** |
-
-Only gateway publishes `127.0.0.1:8080`; the application network is private/internal. Remaining headroom in the 8-GiB/4-core plan covers OS/telemetry. Temporary build/migration/check containers have separate caps; keep heavy tooling outside runtime benchmarks. These configured caps are not sustainable-throughput evidence.
-
-```sh
-docker compose ps
-docker compose logs --tail 100 commerce
-docker compose stats --no-stream
-docker compose down
-```
-
-`down` retains PostgreSQL/RabbitMQ named volumes. Do not remove `.local/` or volumes just to restart. Initializers/realm import are first-start bootstrap, not credential rotation. This is one local developer host, not HA or a proven disaster-recovery setup.
-
-## Identity and ownership
-
-Keycloak owns users/sessions and refresh rotation. `tops-web` is a public Authorization Code/S256 PKCE client; `tops-api` is the access-token audience. Gateway and domain APIs independently check signature, issuer, audience, expiry, token type, subject and roles. Internal service identities cannot use customer/admin permissions. Client identity/role headers are not trusted.
-
-Identity admin/master/management routes remain private. Bootstrap credentials and fixture secrets are mounted only into provisioning/check containers; app runtimes never receive master/migrator credentials. The callback/Persian UI is later; this milestone exposes authenticated APIs and provider configuration, not a finished browser session UI. Stateless access revocation is bounded by the five-minute access-token lifetime. Local HTTP is loopback development configuration; do not expose it directly to the internet.
-
-PostgreSQL has separate Commerce, Billing, Bank and Identity databases. Runtime roles cannot create tables or connect across owners; migrators own their schemas. Identity owns only its managed provider DB. Commerce's Prisma transactions and parameterized raw-money SQL use up to seven domain connections plus one health slot. Runtime history/audit is append-only; migration metadata is not writable by runtimes.
-
-Money is whole IRR: canonical strings externally, exact BigInt arithmetic, unconstrained NUMERIC with finite/integer checks. No business monetary ceiling or Number conversion. Custom checks/triggers/partial indexes live in forward SQL migrations. Never edit applied SQL or use `db push`/reset to bypass migration history. Migration commands receive explicit owner config and verify completed history.
-
-RabbitMQ accounts/exchanges/queue permissions are scoped by owner. Owner-local outbox/inbox loops now deliver versioned checkout preparation using confirms, mandatory routing, SQL leases/receipts, retry backoff and quarantine. Delivery is at least once; domain effects are guarded by SQL identity/version checks. Redis loss degrades readiness without bypassing auth/SQL rules; actual cache/overlap-lock/rate-limit features arrive in their roadmap step.
-
-## Checks
-
-```sh
-docker compose config --quiet
-docker compose --profile tools run --rm --build tools npm test
-docker compose --profile tools run --rm --build tools npm run validate:schemas
-docker compose --profile tools run --rm --build tools npm run format:check
-docker compose --profile tools run --rm --build tools
-docker compose --profile tools run --rm --build foundation-checks
-docker compose --profile tools run --rm --build checkout-checks
-docker compose --profile tools run --rm --build payment-checks
-docker compose --profile tools run --rm --build fulfillment-checks
-```
-
-Foundation checks use real OIDC principals, huge money, concurrent admin/refund changes and SQL guards. They create/deactivate their own test products and roll back/remove only known test-ledger fixtures, retaining audit/discrepancy evidence. No other data is cleared. Seeds preserve later admin edits; user passwords are set on first creation rather than silently reset on reruns.
-
-With Node 24 locally: `npm ci`, `npm test`, `npm run format`. Keep version/lock changes together. Container builds generate the three private clients; Prettier ignores generated code. `scripts/toolchain-info.mjs` is an optional metadata helper, not an automatic updater.
-
-Optional diagnostics:
-
-```sh
-docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
-```
-
-This adds loopback PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16379`; credentials are still required. Normal traffic uses private service DNS. Local Compose secrets are files under a private directory, not an encrypted production vault; changing files alone does not rotate initialized DB/broker credentials.
-
-## Verification and workflow
-
-Use `develop` for integration and `feature/*`/`fix/*` branches for changes; `main` stays release history. See [Git workflow](docs/GIT_WORKFLOW.md).
-
-All [eight roadmap steps](docs/ROADMAP.md) have implementations and selected execution evidence. The [UI guide](docs/UI_GUIDE.md) and [UI evidence](docs/UI_VERIFICATION.md) cover the screens; root DESIGN.md records their tokens. [API reference](docs/API.md), [editable requests](api/tops.http), [workflow diagrams](docs/WORKFLOW_DIAGRAMS.md) and [operations/backup runbooks](docs/OPERATIONS.md) support review.
-
-Step 8 measured 800 new arrivals through two authenticated Gateways: 313 SQL-accepted orders completed once, and 487 excess requests received 503 without acceptance. [Load results](docs/LOAD_RESULTS.md) include latency/backlog/resource samples and the larger shared-host limitation; no dedicated-host sustainable RPS or production SLA is claimed.
-
-The following PowerShell runners deliberately interrupt local services or generate retained test history. Run after normal setup/provisioning in a development environment; they preserve original data and restore services:
-
-```powershell
-powershell -NoProfile -File scripts/verification/load.ps1
-powershell -NoProfile -File scripts/verification/failures.ps1
-powershell -NoProfile -File scripts/verification/durability.ps1
-```
-
-Private raw results and sensitive backups are under `.local/verification/`; isolated clean/restore volumes are retained, stopped, and separate from the original stack. See [executed evidence](docs/SUBMISSION_VERIFICATION.md) before interpreting these commands as availability or disaster-recovery guarantees. Production deployment, a dedicated-host soak and release/publication are separate next activities.
+Work starts on `feature/*` or `fix/*` branches and is integrated into `develop`. Releases go through `release/*` into `main`. See [Git workflow](docs/GIT_WORKFLOW.md). Publishing is a separate step.

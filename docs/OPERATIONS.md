@@ -43,6 +43,16 @@ New work receives 429 for quota or 503 for shared admission/dependency pressure.
 
 The filesystem monitor uses fresh observations and hysteresis; stale/unhealthy storage closes admission. Restore sufficient disk headroom and allow healthy samples before reopening. Archive only verified settled history with an explicit retention design; the current implementation intentionally retains outboxes/receipts. Never purge live queues, accepted orders, financial history or volumes to make space. [Capacity defaults and scale-up](CAPACITY_AND_SCALING.md) and [measured limits](LOAD_RESULTS.md) explain the current envelope.
 
+## Metrics and history
+
+Use an admin bearer token at `GET /api/admin/metrics` for Commerce, or a recognized service token on the private Commerce/Billing `GET /internal/metrics`. These return Prometheus text, not JSON. Customer/anonymous requests are denied. Domain collection is cached for five seconds with one concurrent SQL refresh per owner; a failed refresh returns 503 instead of fabricated zero counts. No new database pool or monitoring service was added.
+
+Commerce exposes admission use/capacity, unpublished outbox count/oldest due age, pending inbox/jobs, retry-wait items, open reviews and unknown payment projections. Billing exposes unpublished outbox, pending inbox, unresolved payments/oldest age, unknown payments and unconfirmed refunds (including failed returns still owed). Both include current RSS/uptime/process CPU and completed HTTP response-class counters. CPU/counters reset on process restart; domain values survive because they are read from SQL. The snapshot timestamp distinguishes cached observations. Oldest *due* outbox age is not original event age. HTTP response counts are not SQL acceptance counts, and sockets closed before a response completes are not counted.
+
+Scrape with a protected operational service identity and alert on stale/missing observations, sustained backlog age and prolonged financial uncertainty. No collector, dashboard, alert delivery, broker queue-age exporter or distributed tracing is bundled. Use verification/owner diagnostics for DB waits and broker depth. Do not add order IDs, customer IDs or raw URLs as metric labels.
+
+Complete order history is available through the owner/admin events endpoint with bounded cursor pages; detail intentionally keeps its recent 100-event window. Start/effect/shipment entries and item attempts commit atomically; a process killed before commit cannot leave a false successful event. Historical events predating the new sequence/start events are retained without inventing missing facts.
+
 ## Consistent backup and isolated restore
 
 The provided maintenance rehearsal stops new admission, stops all writers (Gateway, owners, Identity and monitor), fingerprints each owner's public tables, then makes four PostgreSQL custom-format dumps with owner credentials. RabbitMQ is stopped too; the quiescent SQL snapshot is the recovery authority. PostgreSQL is stopped before a separate full stack starts, keeping resource budgets bounded. This requires planned downtime.

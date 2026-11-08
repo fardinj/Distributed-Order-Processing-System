@@ -1,6 +1,6 @@
 # Backend system design
 
-Status: this is the selected target design. Steps 1-5 implement private services, protected checkout/admin APIs, reliable messaging, payment recovery, local typed effects, aggregates and whole-line refunds. Public cancellation/retry/review, Redis and UI remain later. See [FULFILLMENT_AND_REFUNDS.md](FULFILLMENT_AND_REFUNDS.md) and [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md).
+Status: the eight roadmap steps are implemented with selected execution evidence. This document describes the current ownership, transactions and business rules. See [submission evidence](SUBMISSION_VERIFICATION.md) and [follow-up verification](SUBMISSION_GAPS_VERIFICATION.md) for executed checks and remaining limits.
 
 ## Services and ownership
 
@@ -11,7 +11,7 @@ flowchart LR
     U[Persian customer or admin UI] --> G[API gateway]
     G --> I[OIDC Identity]
     G --> C[Commerce]
-    G --> B[Billing]
+    B[Billing]
     C --> CD[(Commerce DB)]
     B --> BD[(Billing DB)]
     I --> ID[(Identity DB)]
@@ -59,7 +59,7 @@ Financial SQL adapters bind decimal strings, cast to NUMERIC, and return amounts
 
 | Entity | State model |
 |---|---|
-| Order workflow | CHECKOUT_RESERVED, CHECKOUT_EXPIRED, BASKET_CHANGED, PAYING, PAYMENT_REVIEW, PROCESSING, ATTENTION_REQUIRED, MANUAL_REVIEW, CANCELLATION_PENDING, PAYMENT_FAILED, COMPLETED, CANCELLED; final mixed-resolution display maps to item/refund state |
+| Order workflow | CHECKOUT_RESERVED, CHECKOUT_EXPIRED, BASKET_CHANGED, PAYING, PAYMENT_REVIEW, PROCESSING, ATTENTION_REQUIRED, MANUAL_REVIEW, CANCELLATION_PENDING, PAYMENT_FAILED, COMPLETED, CANCELLED, RESOLVED; financial summary remains separate |
 | Item | PENDING, PROCESSING, RETRY_WAIT, SUCCEEDED, FAILED, MANUAL_REVIEW, CANCELLED; explicit disposition guards fulfillment versus refund |
 | Payment | PENDING, PROCESSING, UNKNOWN, SUCCEEDED, FAILED |
 | Reservation | ACTIVE checkout hold, PAYMENT_PENDING, ALLOCATED paid stock, CONSUMED, EXPIRED, RELEASED, DISPUTED/correction disposition |
@@ -84,18 +84,18 @@ A stale checkout-expiry event matches only ACTIVE + due generation, never PAYMEN
 
 | Database | Principal tables and correctness keys |
 |---|---|
-| Commerce | products, inventory (available >= 0), inventory_adjustments; checkout_revisions; orders; order_items; create_requests UNIQUE(customer, operation, key) with fingerprint; reservations UNIQUE(item, generation) and one live allocation; digital_entitlements UNIQUE(customer, product), digital_grants UNIQUE(item); subscriptions UNIQUE(customer, product), subscription_extensions UNIQUE(item); shipments UNIQUE(item/reservation); item_dispositions UNIQUE(item, resolution_generation); order_events; review_cases |
-| Billing | payment_requests/payment operations UNIQUE(order/payment identity); payments with immutable amount/currency/revision; attempts; refund_requests UNIQUE(disposition identity); refunds UNIQUE(operation key); refund_item_allocations; append-only refund_logs; reconciliation due times; no-charge/cancellation tombstones |
-| Bank | charge operations UNIQUE(payment key), initiated_at/deadline_at, immutable terminal outcome; refund operations UNIQUE(refund key) referencing captured operation and capped total |
-| Each owner | outbox UNIQUE(kind, aggregate, generation); receipts UNIQUE(consumer, message_id); stable business operation IDs independent of transport message ID |
+| Commerce | products, inventory (available >= 0), inventory_adjustments; checkout_revisions; orders; order_items; idempotency_records UNIQUE(actor_id, operation, key) with fingerprint; reservations UNIQUE(item, generation) and one live allocation; digital_entitlements UNIQUE(customer, product), digital_grants UNIQUE(item); subscriptions UNIQUE(customer, product), subscription_extensions UNIQUE(item); shipments UNIQUE(item/reservation); item_refund_dispositions UNIQUE(item); order_events; review_cases |
+| Billing | prepared_checkouts; payments UNIQUE(order/operation identity) with immutable amount/currency/revision; payment_lines; payment_attempts; refunds UNIQUE(disposition identity) and UNIQUE(operation key); refund_items; append-only refund_logs; reconciliation due times; payment_cancellations |
+| Bank | bank_operations UNIQUE(operation_key), initiated_at/deadline_at, immutable terminal outcome; bank_refunds UNIQUE(operation_key) referencing captured operation and capped total |
+| Each owner | outbox UNIQUE(kind, aggregate, generation); consumer_receipts and inbox_messages UNIQUE(consumer, message_id); stable business operation IDs independent of transport message ID |
 
 Use local FKs and explicit deletion rules; preserve financial/history evidence. Checks enforce positive physical quantities, nonnegative integer money, valid types/states and required type metadata. Cross-table invariants require guarded transactions or explicit schema mechanisms, not a CHECK pretending to query another owner.
 
-Indexes: owner/date/id and status/date/id order pagination; item(order_id,status); due-work/reconciliation/outbox partial indexes; ACTIVE reservation expiry index; history(order_id,time,id); refund history(payment/order reference,time,id). Live-reservation uniqueness uses explicit state, not a time-dependent predicate. Account for all Node/process pools inside the host budget.
+Indexes: owner/date/id and status/date/id order pagination; item(order_id,status); due-work/reconciliation/outbox partial indexes; ACTIVE reservation expiry index; history(order_id,sequence) plus original timestamp/id index; refund history(payment/order reference,time,id). Live-reservation uniqueness uses explicit state, not a time-dependent predicate. Account for all Node/process pools inside the host budget.
 
 ## SQL/pseudocode: idempotent creation
 
-These are algorithm sketches; executable migrations/SQL will be implemented and tested. A pending admitted order consumes a shared Commerce SQL admission slot; duplicates do not consume another.
+These are algorithm summaries; executable SQL is in the owner services and forward migrations. A pending admitted order consumes a shared Commerce SQL admission slot; duplicates do not consume another.
 
 ```text
 validate authenticated customer and normalize request quantities
@@ -212,7 +212,7 @@ The simple Persian RTL UI shows timers, basket revisions, payment pending/unknow
 
 ## Operations and evidence
 
-Correlate order/item/payment/refund/disposition/message IDs, revision/generation and actor. Metrics cover accepted/rejected admission, outbox/queue age, bank/refund unknown age, reservations by state, retries/review, admin discrepancies, SQL pool/lock pressure and resource saturation. Redis outage uses cache/lock bypass and weaker bounded local quotas, preserving auth/SQL rules.
+Correlate order/item/payment/refund/disposition/message IDs, revision/generation and actor in logs and durable history. Protected owner-local metrics expose admission use/capacity, SQL outbox/inbox backlog, oldest due Commerce outbox age, retry/review counts, unresolved financial work, process resources and HTTP response classes. They use a five-second single-flight cache. Broker queue age, pool/lock telemetry and broader measurements currently come from explicit verification/diagnostics rather than a bundled monitoring platform. Distributed tracing, collectors and dashboards are not implemented. Redis outage uses cache/lock bypass and weaker bounded local quotas, preserving auth/SQL rules.
 
 Entire deployment stays within 8 GB/4 cores; reject excess new work before acceptance, prioritize financial outcomes/recovery and drain admitted workflows after pressure falls. Report measured capacity, not an invented RPS guarantee. [VERIFICATION.md](VERIFICATION.md) defines evidence; [ROADMAP.md](ROADMAP.md) defines implementation order.
 

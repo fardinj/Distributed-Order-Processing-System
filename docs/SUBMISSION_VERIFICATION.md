@@ -1,5 +1,7 @@
 # Step 8 verification and submission evidence
 
+Follow-up on 2026-11-08 added status/date filters, complete paginated history, protected metrics and controlled SIGKILL tests for all three item types. See [follow-up results](SUBMISSION_GAPS_VERIFICATION.md). The results below remain the dated step-8 measurement record.
+
 Executed locally on **2026-11-07** using Docker Desktop/Compose, Node 24.15.0, PostgreSQL 17.11, RabbitMQ 4.3.7, Redis 8.8.4 and Keycloak 26.8.1. Work was performed on `feature/verification-and-submission`. Original credentials, volumes, accepted orders, financial obligations and review debt were preserved. Raw reports/backups remain gitignored and private.
 
 ## Executed results

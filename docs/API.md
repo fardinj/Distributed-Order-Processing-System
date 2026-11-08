@@ -55,6 +55,14 @@ Read the latest response before using a version/generation. Refresh/confirm/paym
 
 Payment/return projection statuses include PENDING, UNKNOWN, SUCCEEDED and FAILED; fulfillment/order status and the financial refund summary are separate fields. A confirmed partial return produces PARTIALLY_REFUNDED; pending money is never counted as returned. Use returned `actions` and current state; a stale client action can still receive 409. See [checkout](CHECKOUT_AND_OUTBOX.md), [payment](PAYMENTS_AND_BANK_RECOVERY.md), [fulfillment/refund](FULFILLMENT_AND_REFUNDS.md) and [recovery](CANCELLATION_RECOVERY_AND_REDIS.md) for complete state rules.
 
+## Filtering, complete history and metrics
+
+Order lists (`/api/orders` and `/api/admin/orders`) accept `status`, `createdFrom` and `createdTo` alongside pagination. Dates must be ISO-8601 timestamps with a timezone; the interval is **[createdFrom, createdTo)**. Customer lists remain owner-scoped. Admin UUID `query` can be combined with these filters. Keep the same filters while following `nextCursor`; unknown states, malformed dates and reversed/empty date intervals return 400.
+
+`GET /api/orders/:id/events?limit=25&cursor=UUID` returns `{items,nextCursor}` for owner/admin, oldest first. It exposes the complete retained history rather than the latest 100-event detail window. Each event has a string `sequence`; cursors must belong to this order. New events use a database identity sequence so events in one transaction retain insertion order. Existing history is preserved with backfilled identities; it cannot recover information never recorded before this migration. New fulfillment attempts include `ItemProcessingStarted`, and physical effects include `ShipmentCreated` with their reference, atomically with the effect/attempt. A rolled-back crash leaves no falsely committed start/effect event.
+
+Admin-only `GET /api/admin/metrics` returns Commerce metrics in Prometheus text format. Commerce and Billing also expose private service-authenticated `GET /internal/metrics`; Gateway does not route those private endpoints. Metrics contain aggregate counts/process values, no order/customer labels or amounts. See [operations](OPERATIONS.md) for caching, definitions and collection limits.
+
 ## Errors, bounds and retries
 
 400 invalid input, 401 missing/invalid/expired token, 403 role denied, 404 unavailable/nonowned resource, 409 stale version/key conflict/current-state conflict, 413 body too large, 429 caller quota, 502 upstream unavailable, 503 capacity/database/identity unavailable. Retry transient failures with exponential delay/jitter and the **same identity/key/body**. After an ambiguous create response, replay the same key to discover SQL acceptance; never assume timeout means rejection. Re-read versions after a definite 409 before deciding a new action.

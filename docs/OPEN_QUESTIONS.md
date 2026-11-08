@@ -2,7 +2,7 @@
 
 Status: Q01-Q21 selected. Q11-Q21 resolved on 2026-11-05 supersede earlier conflicting suggestions. ASSUMPTIONS.md is the current canonical register; historical options below preserve rationale.
 
-Source: [hiring task](../Backend_System_Design_Hiring_Task_-_Order_Processing.md).
+The original hiring brief is kept locally and excluded from Git. The implementation decisions and their rationale are recorded here and in ASSUMPTIONS.md, so this document does not depend on a private source file.
 
 Read this file first, then [assumptions](ASSUMPTIONS.md), [system design](SYSTEM_DESIGN.md), [roadmap](ROADMAP.md), and [verification](VERIFICATION.md).
 

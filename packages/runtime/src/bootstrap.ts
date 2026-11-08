@@ -10,6 +10,7 @@ import type { ServiceConfig } from './config.js';
 import { SecurityModule } from './security.js';
 import { InternalIdentityController } from './internal.controller.js';
 import { Auxiliary } from './auxiliary.js';
+import { recordHttpStatus } from './metrics.js';
 
 @Module({})
 export class RuntimeModule {
@@ -55,6 +56,7 @@ export async function bootstrap(
       res.setHeader('x-request-id', requestId);
       const start = performance.now();
       res.on('finish', () => {
+        recordHttpStatus(res.statusCode);
         if (!req.path.startsWith('/health/'))
           logRecord(config.name, 'info', 'request_completed', {
             requestId,

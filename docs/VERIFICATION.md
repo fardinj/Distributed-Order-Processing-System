@@ -1,8 +1,16 @@
 # Verification plan
 
-Status: business scenarios below are planned, not results. Step-1 unit/integration/isolation/outage results are separately recorded in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md). Expectations reflect selected Q01–Q21. Use real PostgreSQL/RabbitMQ/private service databases for future transaction/crash/coordination tests; mocks alone cannot prove locks or message acknowledgments.
+Latest selected execution evidence: [step 8 submission matrix](SUBMISSION_VERIFICATION.md), [load measurements](LOAD_RESULTS.md), [step 6 recovery checks](RECOVERY_VERIFICATION.md) and [step 7 UI checks](UI_VERIFICATION.md). This document remains the broader plan; consult those reports for actual commands, passing checks and unexecuted limitations.
+
+Status: scenarios below are the target verification plan, not blanket passing results. Executed step-1 evidence is in [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md), and step-2 schema/auth/admin/concurrency evidence is in [FOUNDATIONS_VERIFICATION.md](FOUNDATIONS_VERIFICATION.md). Use real owner databases and RabbitMQ for transaction/crash/coordination tests; mocks alone cannot prove locks or acknowledgments.
 
 ## Core invariant scenarios
+
+Step-5 typed effects, aggregate/refund finality and recovery results are in [FULFILLMENT_VERIFICATION.md](FULFILLMENT_VERIFICATION.md), including the storage-enforced first-start cutoff. Public cancellation/retry/review remains step 6.
+
+Step-4 executed financial identity, Bank deadline, payment-stock and no-charge fencing evidence is recorded in [PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md). Public cancellation eligibility and actual refund/fulfillment execution remain later milestones.
+
+Step-3 executed admission, checkout, expiry and cross-owner preparation evidence is recorded in [CHECKOUT_VERIFICATION.md](CHECKOUT_VERIFICATION.md). The financial/fulfillment/cancellation cases below remain target scenarios until their milestones execute them.
 
 | Scenario | Required evidence |
 |---|---|

@@ -1,6 +1,6 @@
 # Service separation and reliable communication
 
-Status: Q16 A/Q17 selected on 2026-11-05. Compose service boundaries now boot and pass initial checks; see [SKELETON_VERIFICATION.md](SKELETON_VERIFICATION.md). Domain commands/projections/outbox persistence remain planned. [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) defines the target workflow.
+Status: the selected services, customer/admin APIs, cancellation/retry/review, Redis features and Persian UI are implemented. Commerce owns effects and resolution; Billing owns captured/refundable budgets; Bank owns returns. See [submission evidence](SUBMISSION_VERIFICATION.md) and [follow-up verification](SUBMISSION_GAPS_VERIFICATION.md) for actual checks and limitations. Gateway routes business requests to Commerce; financial commands/results cross owners through RabbitMQ.
 
 ## Two different gateways
 
@@ -14,7 +14,7 @@ flowchart LR
     subgraph N[Private application network]
         G --> I[Identity]
         G --> CO[Commerce]
-        G --> B[Billing]
+        B[Billing]
         CO --> CDB[(Commerce PostgreSQL)]
         B --> BDB[(Billing PostgreSQL)]
         I --> IDB[(Identity PostgreSQL)]

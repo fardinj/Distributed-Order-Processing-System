@@ -13,7 +13,7 @@ COPY packages/runtime/package.json packages/runtime/package.json
 RUN npm ci --no-audit --no-fund
 
 FROM dependencies AS development
-COPY tsconfig.json .prettierrc.json compose.yaml compose.dev.yaml ./
+COPY tsconfig.json .prettierrc.json .prettierignore compose.yaml compose.dev.yaml compose.verify.yaml ./
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
@@ -21,6 +21,13 @@ COPY tests ./tests
 COPY infrastructure ./infrastructure
 RUN npm run build
 CMD ["npm", "test"]
+
+FROM mcr.microsoft.com/playwright:v1.65.0-noble AS ui-verification
+WORKDIR /workspace
+COPY --from=development /usr/local/bin/node /usr/local/bin/node
+COPY --from=development /workspace /workspace
+ENV NODE_OPTIONS=--max-old-space-size=768
+CMD ["node", "scripts/ui-smoke.mjs"]
 
 FROM development AS build
 RUN npm run validate:schemas && npm prune --omit=dev --ignore-scripts

@@ -1,8 +1,10 @@
 import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
 import { CONFIG, Dependencies, readiness } from './dependencies.js';
 import type { ServiceConfig } from './config.js';
+import { Public } from './security.js';
 
 @Controller('health')
+@Public()
 export class HealthController {
   constructor(
     @Inject(CONFIG) private readonly config: ServiceConfig,

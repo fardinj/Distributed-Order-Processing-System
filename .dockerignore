@@ -5,6 +5,10 @@
 .env.*
 node_modules
 dist
+**/src/generated/
 coverage
 *.log
 *.pdf
+.impeccable
+Backend_System_Design_Hiring_Task_-_Order_Processing.md
+temp.txt

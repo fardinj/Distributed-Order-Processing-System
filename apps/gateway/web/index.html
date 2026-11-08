@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#194e43" />
+    <title>سامانه سفارش | TOPS</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+    <script type="module" src="/ui/app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">رفتن به محتوا</a>
+    <header class="topbar">
+      <a class="brand" href="#catalog"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M6 10h20v17H6zM11 10V7a5 5 0 0 1 10 0v3M11 17h10" /></svg
+        ><span>سامانه سفارش<small dir="ltr">TOPS</small></span></a
+      >
+      <nav aria-label="بخش‌های سامانه" id="navigation" hidden>
+        <a href="#catalog">فروشگاه</a><a href="#orders">سفارش‌های من</a>
+        <a href="#admin/products" data-admin hidden>مدیریت کالا</a
+        ><a href="#admin/orders" data-admin hidden>مدیریت سفارش‌ها</a
+        ><a href="#admin/reviews" data-admin hidden>بررسی دستی</a>
+      </nav>
+      <div class="account">
+        <span id="identity"></span
+        ><button id="session" class="quiet" disabled>در حال اتصال…</button>
+      </div>
+    </header>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <main id="main" tabindex="-1"><div class="empty">در حال آماده‌سازی سامانه…</div></main>
+    <footer>مبالغ به ریال است. وضعیت پرداخت و بازپرداخت از سرور دریافت می‌شود.</footer>
+    <dialog id="action-dialog" aria-labelledby="dialog-title">
+      <form id="action-form">
+        <h2 id="dialog-title"></h2>
+        <div id="dialog-fields"></div>
+        <p id="dialog-error" role="alert"></p>
+        <div class="actions">
+          <button type="submit" class="primary">تأیید و ثبت</button
+          ><button type="button" id="dialog-cancel" class="quiet">انصراف</button>
+        </div>
+      </form>
+    </dialog>
+    <noscript>برای مشاهده سفارش‌ها، جاوااسکریپت مرورگر را فعال کنید.</noscript>
+  </body>
+</html>

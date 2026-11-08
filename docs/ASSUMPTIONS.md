@@ -1,6 +1,6 @@
 # Requirements and accepted decisions
 
-Status: Q01–Q10 selected on 2026-11-04; Q11–Q21/refinements selected on 2026-11-05. Service skeleton and step-1 runtime evidence are implemented as of 2026-11-06; business workflows remain planned. Later refinements supersede earlier conflicting proposals. See SKELETON_VERIFICATION.md for actual results.
+Status: Q01-Q21 choices are selected. Steps 1-7 are implemented as of 2026-11-06. Recovery/Redis contracts remain in [CANCELLATION_RECOVERY_AND_REDIS.md](CANCELLATION_RECOVERY_AND_REDIS.md). The Persian UI, static-client engineering choices and executed evidence are in [UI_GUIDE.md](UI_GUIDE.md) and [UI_VERIFICATION.md](UI_VERIFICATION.md). Step 8 evidence/load work is next.
 
 ## Assignment requirements
 
@@ -48,3 +48,5 @@ Use Node.js/TypeScript, NestJS, PostgreSQL, Redis, RabbitMQ and Prisma. Demonstr
 The business choices are selected. Engineering defaults in SYSTEM_DESIGN.md, CAPACITY_AND_SCALING.md, SECURITY.md and UI_SCOPE.md remain tunable until measured. Examples: jitter bound, reconciliation cap, resource watermarks, precise session lifetimes and provider package/version. Keycloak is the proposed OIDC provider, not a new requirement from the user. Disk capacity/durability and sustained benchmark throughput are unspecified; do not claim unlimited durable backlog or a measured capacity.
 
 No additional business-policy approval is implied by routine implementation choices. Escalate actual contradictions or changed scope; otherwise record the chosen defaults and evidence.
+
+Step 8 operational default: planned-downtime, quiescent four-owner PostgreSQL backups with separate-volume restore verification; Redis is rebuildable and retained SQL outbox/inbox identities reconstruct missing broker handoffs. No HA, continuous WAL archive, encrypted off-host backup or production RPO/RTO is assumed. [Runbook](OPERATIONS.md) and [execution evidence](SUBMISSION_VERIFICATION.md) give exact limits. The 8-GB/four-core server budget remains the target; load was executed under matching component caps on a larger shared host and does not substitute for dedicated-host measurement.

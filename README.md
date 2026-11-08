@@ -1,116 +1,130 @@
-# TOPS — order processing
+# Distributed Order Processing System
 
-Docker-first NestJS/TypeScript workspace for the order-processing hiring task.
+This project accepts orders and processes their items in the background. An order can contain digital products, subscriptions and physical products. Each type has its own processor.
 
-The first milestone provides runnable service boundaries and infrastructure. Order/payment/refund business APIs, outbox persistence and the Persian UI are later milestones; absent domain routes return 404 rather than exposing temporary unauthenticated actions.
+The main goal is to keep orders, stock and payments correct when requests are repeated, workers stop or a dependency is unavailable. There is also a small Persian UI so the customer and admin flows are easy to try.
 
-## Start
+## What is included
 
-Install Docker with Compose and run these commands from the repository root. Host Node/npm is optional; all build and test commands can run in containers.
+- Product management and physical inventory with an audit trail.
+- Idempotent checkout, a five-minute stock reservation and confirmation when the basket changes.
+- A bank simulator with successful, failed and unknown payment outcomes.
+- Separate digital, subscription and physical fulfillment modules.
+- Item retries, manual review, cancellation and full or partial refunds.
+- Order status/date filters, paginated event history and refund logs.
+- Authentication, customer ownership checks and admin-only actions.
+- Docker Compose, migrations, seeds and checks using the real databases and broker.
+
+The stack is **Node.js, TypeScript, NestJS, Prisma, PostgreSQL, RabbitMQ and Redis**. Keycloak handles login and service identities. The repository uses npm workspaces and a shared lockfile.
+
+## Run locally
+
+You need Docker with Compose. A local Node installation is optional. Run these commands from the repository root:
 
 ```sh
 docker compose --profile setup run --rm --no-deps setup
-docker compose up --build --wait --wait-timeout 360
-docker compose --profile tools run --rm --build tools
+docker compose up -d --wait postgres rabbitmq redis identity
+docker compose --profile bootstrap run --rm --build migrate
+docker compose --profile bootstrap run --rm identity-init --fixtures
+docker compose --profile bootstrap run --rm --build seed
+docker compose up -d --build --wait --wait-timeout 360
 ```
 
-The first command creates `.env`, random local secrets and hashed RabbitMQ definitions under gitignored `.local/`. It preserves existing credentials on rerun and never prints them. Setup is required **before** `up`; it requires no database or network connection after the Node image has been pulled.
+Open **http://localhost:8080/**. Readiness is at http://localhost:8080/health/ready.
 
-Open [localhost:8080](http://localhost:8080) for skeleton information, [readiness](http://localhost:8080/health/ready), or [OIDC discovery](http://localhost:8080/identity/realms/tops/.well-known/openid-configuration). The gateway port/public origin are configured in `.env`; change both together.
+Setup creates `.env` and random credentials under `.local/`. Rerunning setup preserves existing credentials, and migrations/seeds preserve existing data. Keep `.local/` and the Docker volumes when restarting. The storage monitor needs three healthy samples before accepting new orders, which can take about 15 seconds after startup.
 
-```sh
-docker compose ps
-docker compose logs --tail 100 commerce
-docker compose stats --no-stream
-docker compose down
-```
+For later updates, apply migrations before starting the updated application images. Changing a credential file does not rotate a password already stored in PostgreSQL, RabbitMQ or Keycloak.
 
-`down` preserves PostgreSQL/RabbitMQ named volumes. Do not delete volumes or `.local/` just to restart. Database initializers and provider realm imports are first-start bootstrap, not a credential-rotation or migration mechanism.
+## Try the flows
 
-## Find the code
+The `--fixtures` option creates these local demo accounts:
+
+| User | Username | Local password file |
+|---|---|---|
+| Customer A | `demo-customer-a` | `.local/secrets/user_customer_a_password` |
+| Customer B | `demo-customer-b` | `.local/secrets/user_customer_b_password` |
+| Admin | `demo-admin` | `.local/secrets/user_admin_password` |
+
+Read the passwords from your own files. Admin login requires TOTP enrollment when first requested. These are development accounts, not production defaults.
+
+Start by creating products and adding physical stock as admin. Then sign in as a customer, create a checkout, confirm payment and inspect the item results. Use separate browser profiles for the admin and customer if you want to switch between them. The [UI guide](docs/UI_GUIDE.md) covers the remaining flows.
+
+The bank and shipments are simulated. Normal payments succeed; failure scenarios use private test fixtures rather than customer-controlled success/failure flags.
+
+## How it is split
 
 ```text
-apps/
-  gateway/             # Client entry; allowlisted OIDC proxy
-  commerce/            # Orders/catalog/inventory and three local processors
-    prisma/            # Commerce-owned schema and future migrations
-  billing/             # Payment/refund ownership and recovery
-    prisma/
-  bank-simulator/      # Independent provider ledger boundary
-    prisma/
-packages/
-  runtime/src/         # Shared bootstrap, health, config, JSON logs; no domain logic
-infrastructure/
-  docker/Dockerfile    # Shared multistage build; selected app only in runtime image
-  postgres/init/      # Private DBs, runtime/migrator roles, default privileges
-  rabbitmq/           # Broker config; scoped definitions generated by setup
-  redis/              # Optional auxiliary store, authenticated health/entrypoint
-  keycloak/           # Identity bootstrap, health and empty application realm
-scripts/              # Local setup, container launch/health, integration smoke
-tests/                # Focused runtime/routing tests
-docs/                 # Decisions, design, roadmap, capacity and verification
-compose.yaml          # Normal stack; only loopback gateway is published
-compose.dev.yaml      # Optional loopback infrastructure diagnostic ports
+apps/gateway/          Client entry point and Persian UI
+apps/commerce/         Catalog, inventory, orders and typed fulfillment
+apps/billing/          Payments, refunds and financial reconciliation
+apps/bank-simulator/   Simulated bank and its own durable ledger
+packages/runtime/     Shared technical code, without shared domain models
+infrastructure/       Dockerfiles and infrastructure configuration
+scripts/              Setup, migrations, seeds and verification runners
+tests/                Unit and contract checks
+docs/                 Decisions, design, API contracts and test results
 ```
 
-Each app owns its source/schema; shared dependency versions and `package-lock.json` live at the root. Imports from `packages/runtime` contain technical plumbing only. Do not put Commerce/Billing business models into that shared package. An app's README describes its responsibility and future domain directories.
+Only the Gateway is exposed, on loopback port 8080. Commerce, Billing, Bank and Identity have separate databases and credentials on one private network. The product processors stay inside Commerce so their effects, stock changes and order state can commit in one SQL transaction.
 
-## Services and limits
+PostgreSQL is the source of truth. RabbitMQ carries commands/results through owner-local outbox/inbox tables. Redis provides cache, scheduler overlap locks and rate limiting. If Redis fails, the API uses weaker per-instance rate limits while database safeguards and authentication remain active.
 
-| Service | Internal address | Memory cap | CPU ceiling |
-|---|---|---:|---:|
-| gateway | gateway:3000 | 192 MiB | 0.20 |
-| commerce | commerce:3000 | 640 MiB | 0.60 |
-| billing | billing:3000 | 384 MiB | 0.30 |
-| bank-simulator | bank-simulator:3000 | 192 MiB | 0.10 |
-| postgres | postgres:5432 | 1536 MiB | 1.00 |
-| rabbitmq | rabbitmq:5672 | 640 MiB | 0.40 |
-| redis | redis:6379 | 192 MiB | 0.10 |
-| identity | identity:8080, health :9000 | 2048 MiB | 0.60 |
-| **Steady-state total** | | **5824 MiB** | **3.30** |
+Money is whole **IRR**, carried as decimal strings and calculated with BigInt/unconstrained SQL NUMERIC. Prices never use floating-point arithmetic. Customer identity comes from the access token, and payment starts through an explicit checkout action.
 
-The remaining 2368 MiB / 0.70 cores in the 8 GiB / 4-core envelope are reserved for the OS/headroom and lightweight telemetry. Docker Desktop itself and unrelated containers also consume host resources. The temporary build/test helper has a separate 1024 MiB cap and 768 MiB Node heap; run heavy tooling outside the runtime capacity benchmark. The cap sum is not a load-test result.
+## Important docs
 
-## Health and identity
+| Document | What to read it for |
+|---|---|
+| [Assumptions](docs/ASSUMPTIONS.md) | The business rules we selected, including reservations, refunds, retries and capacity |
+| [Decision history](docs/OPEN_QUESTIONS.md) | Options we considered and why we picked them |
+| [System design](docs/SYSTEM_DESIGN.md) | Transactions, locking, states and the important SQL/pseudocode |
+| [Service architecture](docs/SERVICE_ARCHITECTURE.md) | Ownership and communication boundaries |
+| [Workflow diagrams](docs/WORKFLOW_DIAGRAMS.md) | Checkout, payment, fulfillment and refund sequences |
+| [API reference](docs/API.md) / [HTTP requests](api/tops.http) | Routes, request examples, authentication and error handling |
+| [Security](docs/SECURITY.md) | API permissions, identities and infrastructure controls |
+| [Operations](docs/OPERATIONS.md) | Unknown payments, retries, quarantine, metrics and backup/restore |
+| [Capacity and scaling](docs/CAPACITY_AND_SCALING.md) | Resource limits, admission control and the scale-up path |
+| [Verification results](docs/SUBMISSION_VERIFICATION.md) | What was actually tested and what remains unproven |
+| [Follow-up verification](docs/SUBMISSION_GAPS_VERIFICATION.md) | Forced worker crashes, filters, history and metrics |
+| [Load results](docs/LOAD_RESULTS.md) | Workload, accepted/rejected requests, latency and resource samples |
+| [Roadmap](docs/ROADMAP.md) | Implementation steps and their evidence |
 
-Every Node service exposes `/health/live` and `/health/ready` internally. Liveness means the process responds; readiness probes its owned DB/broker/upstreams. Redis is optional: loss reports `degraded` with HTTP 200, while required dependency failure reports 503. Readiness does not claim a distributed rate limiter or cache is implemented yet.
+## Checks
 
-Keycloak uses the `/identity` context path and application realm `tops`. The gateway proxies only that realm and required static assets. Identity admin/master/management endpoints are not proxied. No demo users, application clients or domain authorization shortcuts are installed; their authenticated integration is roadmap step 2. The bootstrap admin password is a generated local secret and the provider admin API remains private.
-
-The stack is loopback-only development HTTP. TLS termination, application sessions and production identity provisioning are not completed by this scaffold. Do not expose it directly to the internet.
-
-## Database and broker ownership
-
-PostgreSQL creates `commerce`, `billing`, `bank` and `identity` databases. App runtimes are nonsuperuser, cannot create tables, and cannot connect to another owner's database. Separate migrator roles own app databases/schemas and define default table/sequence grants. Identity owns only its provider database because its managed schema lifecycle requires that access. Gateway has no domain DB credentials.
-
-Each domain app has a Prisma 7 configuration and deliberately empty domain schema. `pg` performs dependency health checks; Prisma model generation/migrations begin in the schema milestone. Do not add placeholder business tables just to generate a client. Exact large-IRR adapters/custom NUMERIC migrations are still pending.
-
-RabbitMQ has private Commerce/Billing accounts, durable owner event exchanges and queue/exchange ACLs. Apps may publish their own events and bind their own queues to the other owner's exchange. The smoke check verifies routed delivery/confirm/ack and rejected foreign topology writes. It does **not** prove transactional outbox recovery—that persistence is roadmap step 3.
-
-Local secrets are mounted only where needed. `.local/` is ignored by Git and excluded from image builds. The local secrets directory is private on POSIX; mounted secret files are readable by nonroot app users. These Compose file secrets are local files, not an encrypted production secret manager. Changing a file after initialization does not rotate the stored DB/broker credentials.
-
-## Checks and development
+For the build, unit tests, schema validation and formatting:
 
 ```sh
-docker compose config --quiet
 docker compose --profile tools run --rm --build tools npm test
-docker compose --profile tools run --rm --build tools npm run validate:schemas
-docker compose --profile tools run --rm --build tools npm run format:check
-docker compose --profile tools run --rm --build tools
+docker compose --profile tools run --rm tools npm run validate:schemas
+docker compose --profile tools run --rm tools npm run format:check
 ```
 
-Unit checks cover required/optional readiness, safe correlation IDs and identity-path restrictions. Integration smoke checks exercise every service, OIDC routing, DB ownership/no-DDL, scoped broker confirm/receive/ack and authenticated Redis. Rebuild after source changes with `docker compose up --build --wait --wait-timeout 360`.
-
-If Node 24 is installed locally, `npm ci`, `npm test` and `npm run format` work at the root. Keep dependency changes and the lockfile together. Toolchain versions are exact in `package.json` and image tags are exact in Compose/Dockerfile. `scripts/toolchain-info.mjs` is an optional registry-information helper, not a startup/update step.
-
-For optional diagnostics only:
+The integration suites run against the live Compose stack:
 
 ```sh
-docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
+docker compose --profile tools run --rm --build foundation-checks
+docker compose --profile tools run --rm --build checkout-checks
+docker compose --profile tools run --rm --build payment-checks
+docker compose --profile tools run --rm --build fulfillment-checks
+docker compose --profile tools run --rm --build recovery-checks
+docker compose --profile tools run --rm --build ui-checks
 ```
 
-This additionally binds PostgreSQL `15432`, RabbitMQ management `15672` and Redis `16379` to `127.0.0.1`. They still require credentials; normal interservice traffic never uses host ports.
+These checks create identifiable fixture data and retain order/audit history. They are for a development environment. The PowerShell runners under `scripts/verification/` also test load, dependency outages, forced worker crashes and isolated backup/restore; some deliberately interrupt services. Read the [runbook](docs/OPERATIONS.md) before running them.
 
-## Next milestone
+With Node 24.15 locally, you can also use `npm ci` and `npm test`.
 
-See [ROADMAP](docs/ROADMAP.md), [design](docs/SYSTEM_DESIGN.md), [security](docs/SECURITY.md) and [capacity plan](docs/CAPACITY_AND_SCALING.md). Actual commands/results for this milestone belong in [skeleton verification](docs/SKELETON_VERIFICATION.md).
+## Current limits
+
+The planned server budget is **8 GB RAM and four CPU cores**. The nine steady services have combined limits of 5,888 MiB and 3.35 CPUs. Build and test tools have separate budgets.
+
+The measured load run sent 800 new requests through two Gateways. All 313 accepted orders completed once; the other 487 requests received 503 without acceptance. That run used capped containers on a larger shared host. It does not establish sustained capacity on a dedicated four-core machine.
+
+This is a local simulator deployment. It does not include real payment/shipping providers, automatic failover, off-host backup storage or a production TLS setup. Operational metrics are available through protected endpoints; a metrics collector, dashboards and distributed tracing are not bundled.
+
+Secrets, generated files, raw verification results and the original hiring brief stay local and are ignored by Git. The design and decisions needed to review the implementation are in `docs/`.
+
+## Git workflow
+
+Work starts on `feature/*` or `fix/*` branches and is integrated into `develop`. Releases go through `release/*` into `main`. See [Git workflow](docs/GIT_WORKFLOW.md). Publishing is a separate step.

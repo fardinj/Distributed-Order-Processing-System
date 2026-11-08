@@ -11,12 +11,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run generate:clients && tsc -p tsconfig.json && node scripts/build-web.mjs",
+    "generate:clients": "prisma generate --config apps/commerce/prisma.config.ts && prisma generate --config apps/billing/prisma.config.ts && prisma generate --config apps/bank-simulator/prisma.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
     "validate:schemas": "prisma validate --config apps/commerce/prisma.config.ts && prisma validate --config apps/billing/prisma.config.ts && prisma validate --config apps/bank-simulator/prisma.config.ts",
-    "format:check": "prettier --check apps packages scripts tests infrastructure compose.yaml compose.dev.yaml package.json tsconfig.json",
-    "format": "prettier --write apps packages scripts tests infrastructure compose.yaml compose.dev.yaml package.json tsconfig.json"
+    "format:check": "prettier --check apps packages scripts tests infrastructure compose.yaml compose.dev.yaml compose.verify.yaml package.json tsconfig.json",
+    "format": "prettier --write apps packages scripts tests infrastructure compose.yaml compose.dev.yaml compose.verify.yaml package.json tsconfig.json"
   },
   "dependencies": {
     "@nestjs/common": "12.3.3",
@@ -26,16 +27,21 @@
     "@prisma/client": "7.10.1",
     "amqplib": "0.10.9",
     "http-proxy-middleware": "4.2.1",
+    "jose": "6.2.15",
     "pg": "8.23.1",
     "redis": "6.3.1",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@fontsource-variable/vazirmatn": "5.3.0",
     "@types/amqplib": "0.10.8",
     "@types/express": "5.0.6",
     "@types/node": "24.10.0",
     "@types/pg": "8.23.1",
+    "keycloak-js": "26.2.5",
+    "playwright": "1.65.0",
     "prettier": "3.6.2",
     "prisma": "7.10.1",
     "typescript": "5.9.3"

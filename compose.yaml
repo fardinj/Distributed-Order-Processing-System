@@ -54,6 +54,9 @@ services:
       dockerfile: infrastructure/docker/Dockerfile
       args: { SERVICE_NAME: commerce }
     environment:
+      OIDC_ISSUER: ${PUBLIC_URL:-http://localhost:8080}/identity/realms/tops
+      OIDC_SERVICE_CLIENT_ID: commerce-service
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/commerce_service_password
       DB_NAME: commerce
       DB_USER: commerce_runtime
       DB_POOL_MAX: '8'
@@ -62,7 +65,8 @@ services:
       RABBITMQ_PASSWORD_FILE: /run/secrets/commerce_rabbitmq_password
       REDIS_PASSWORD_FILE: /run/secrets/redis_password
       NODE_OPTIONS: --max-old-space-size=384
-    secrets: [commerce_db_password, commerce_rabbitmq_password, redis_password]
+    secrets:
+      [commerce_db_password, commerce_rabbitmq_password, redis_password, commerce_service_password]
     mem_limit: 640m
     cpus: 0.60
     cpu_shares: 600
@@ -77,6 +81,9 @@ services:
       dockerfile: infrastructure/docker/Dockerfile
       args: { SERVICE_NAME: billing }
     environment:
+      OIDC_ISSUER: ${PUBLIC_URL:-http://localhost:8080}/identity/realms/tops
+      OIDC_SERVICE_CLIENT_ID: billing-service
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/billing_service_password
       DB_NAME: billing
       DB_USER: billing_runtime
       DB_POOL_MAX: '4'
@@ -84,7 +91,7 @@ services:
       RABBITMQ_USER: billing
       RABBITMQ_PASSWORD_FILE: /run/secrets/billing_rabbitmq_password
       NODE_OPTIONS: --max-old-space-size=224
-    secrets: [billing_db_password, billing_rabbitmq_password]
+    secrets: [billing_db_password, billing_rabbitmq_password, billing_service_password]
     mem_limit: 384m
     cpus: 0.30
     cpu_shares: 300
@@ -99,6 +106,7 @@ services:
       dockerfile: infrastructure/docker/Dockerfile
       args: { SERVICE_NAME: bank-simulator }
     environment:
+      OIDC_ISSUER: ${PUBLIC_URL:-http://localhost:8080}/identity/realms/tops
       DB_NAME: bank
       DB_USER: bank_runtime
       DB_POOL_MAX: '2'
@@ -108,6 +116,35 @@ services:
     mem_limit: 192m
     cpus: 0.10
     cpu_shares: 100
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  storage-monitor:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    user: '65534:65534'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [sh, /opt/tops/storage-monitor.sh]
+    volumes:
+      - postgres-data:/storage:ro
+      - ./infrastructure/postgres/storage-monitor.sh:/opt/tops/storage-monitor.sh:ro
+    secrets: [commerce_db_password]
+    networks: [private]
+    mem_limit: 64m
+    cpus: 0.05
+    pids_limit: 20
+    logging: *logging
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'PGPASSWORD=$$(cat /run/secrets/commerce_db_password) PGCONNECT_TIMEOUT=2 psql -h postgres -U commerce_runtime -d commerce -tAc "SELECT storage_checked_at>clock_timestamp()-interval ''30 seconds'' FROM admission_budget WHERE id=1" | grep -qx t',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -269,11 +306,225 @@ services:
         commerce_rabbitmq_password,
         billing_rabbitmq_password,
         redis_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        commerce_service_password,
+        billing_service_password,
       ]
+    volumes:
+      - ./.local/identity:/state:ro
     networks: [private]
     mem_limit: 1024m
     init: true
     command: [node, scripts/smoke.mjs]
+
+  migrate:
+    profiles: [bootstrap]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: development
+    entrypoint: [node, scripts/migrate.mjs]
+    environment:
+      NODE_OPTIONS: --max-old-space-size=768
+    secrets: [commerce_migration_password, billing_migration_password, bank_migration_password]
+    networks: [private]
+    mem_limit: 1024m
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  identity-init:
+    profiles: [bootstrap]
+    image: node:24.15.0-bookworm-slim
+    entrypoint: [node, /opt/tops/provision-identity.mjs]
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+    volumes:
+      - ./scripts/provision-identity.mjs:/opt/tops/provision-identity.mjs:ro
+      - ./.local/identity:/state
+    secrets:
+      [
+        identity_admin_password,
+        commerce_service_password,
+        billing_service_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        user_customer_a_password,
+        user_customer_b_password,
+        user_admin_password,
+      ]
+    networks: [private]
+    mem_limit: 192m
+    depends_on:
+      identity: { condition: service_healthy }
+
+  seed:
+    profiles: [bootstrap]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: development
+    entrypoint: [node, scripts/seed.mjs]
+    environment:
+      NODE_OPTIONS: --max-old-space-size=768
+    secrets: [commerce_migration_password, bank_migration_password]
+    networks: [private]
+    mem_limit: 1024m
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  foundation-checks: &foundation-checks
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: development
+    entrypoint: [node, scripts/foundations-smoke.mjs]
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      NODE_OPTIONS: --max-old-space-size=768
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        commerce_service_password,
+      ]
+    networks: [private]
+    mem_limit: 1024m
+
+  checkout-checks: &checkout-checks
+    <<: *foundation-checks
+    entrypoint: [node, scripts/checkout-smoke.mjs]
+    volumes: ['./.local/verification:/verification']
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        commerce_rabbitmq_password,
+        billing_rabbitmq_password,
+      ]
+
+  payment-checks: &payment-checks
+    <<: *checkout-checks
+    entrypoint: [node, scripts/payment-smoke.mjs]
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        commerce_rabbitmq_password,
+        billing_rabbitmq_password,
+        commerce_service_password,
+        billing_service_password,
+      ]
+
+  fulfillment-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/fulfillment-smoke.mjs]
+
+  recovery-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/recovery-smoke.mjs]
+    secrets:
+      [
+        commerce_db_password,
+        billing_db_password,
+        bank_db_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        redis_password,
+      ]
+
+  ui-checks:
+    profiles: [tools]
+    entrypoint: [node, scripts/ui-smoke.mjs]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+      target: ui-verification
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+    secrets:
+      [
+        fixture_admin_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        user_customer_a_password,
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+      ]
+    volumes: ['./.local/verification/ui:/verification']
+    networks: [private]
+    mem_limit: 1536m
+    init: true
+
+  submission-checks:
+    <<: *payment-checks
+    entrypoint: [node, scripts/verification/run.mjs]
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      BACKUP_RUN: ${BACKUP_RUN:-}
+    cpus: 0.50
+    mem_limit: 768m
+    secrets:
+      [
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        fixture_customer_a_password,
+        fixture_customer_b_password,
+        fixture_admin_password,
+        identity_admin_password,
+        postgres_admin_password,
+        identity_db_password,
+        billing_service_password,
+      ]
+
+  backup:
+    profiles: [operations]
+    image: postgres:17.11-bookworm
+    entrypoint: [bash, /opt/tops/backup.sh]
+    environment:
+      BACKUP_RUN: ${BACKUP_RUN:-}
+    volumes: ['./scripts/verification:/opt/tops:ro', './.local/verification:/verification']
+    secrets:
+      [
+        commerce_migration_password,
+        billing_migration_password,
+        bank_migration_password,
+        identity_db_password,
+        postgres_admin_password,
+      ]
+    networks: [private]
+    mem_limit: 256m
+    cpus: 0.10
 
 networks:
   edge:
@@ -298,3 +549,11 @@ secrets:
   commerce_rabbitmq_password: { file: ./.local/secrets/commerce_rabbitmq_password }
   billing_rabbitmq_password: { file: ./.local/secrets/billing_rabbitmq_password }
   redis_password: { file: ./.local/secrets/redis_password }
+  commerce_service_password: { file: ./.local/secrets/commerce_service_password }
+  billing_service_password: { file: ./.local/secrets/billing_service_password }
+  fixture_customer_a_password: { file: ./.local/secrets/fixture_customer_a_password }
+  fixture_customer_b_password: { file: ./.local/secrets/fixture_customer_b_password }
+  fixture_admin_password: { file: ./.local/secrets/fixture_admin_password }
+  user_customer_a_password: { file: ./.local/secrets/user_customer_a_password }
+  user_customer_b_password: { file: ./.local/secrets/user_customer_b_password }
+  user_admin_password: { file: ./.local/secrets/user_admin_password }
